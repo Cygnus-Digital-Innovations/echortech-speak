@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speak: setup</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/assets/setup.js"></script>
+</head>
+<body>
+  <div class="brand">Speak</div>
+
+  <main class="card" id="view-form">
+    <h1>Get your inbox</h1>
+    <p class="sub">Your keys are made right here on your device. We never see your private key.</p>
+    <form id="setup-form">
+      <div class="field">
+        <label for="name">Your name</label>
+        <input type="text" id="name" required maxlength="60" autocomplete="name">
+        <p class="hint">This is how people find you when sending.</p>
+      </div>
+      <div class="field">
+        <label for="passphrase">Passphrase</label>
+        <input type="password" id="passphrase" required autocomplete="new-password">
+        <p class="hint">At least 12 characters. A few random words works great.</p>
+      </div>
+      <div class="field">
+        <label for="confirm">Type it again</label>
+        <input type="password" id="confirm" required autocomplete="new-password">
+      </div>
+      <p class="note">Forget your passphrase or lose your key file, and your messages are gone forever. Nobody can reset it.</p>
+      <p class="error" id="error" role="alert" hidden></p>
+      <button class="btn" id="create" type="submit" disabled>Make my keys</button>
+    </form>
+  </main>
+
+  <main class="card" id="view-save" hidden>
+    <h1>Save your key file</h1>
+    <p class="sub">Keep it somewhere safe, like your password manager. We can't recover it.</p>
+    <div class="stack">
+      <button class="btn" id="download" type="button">Download key file</button>
+      <p class="hint" id="download-hint" hidden>Check your downloads folder, then move it somewhere safe.</p>
+      <label class="check"><input type="checkbox" id="saved" disabled><span>I've saved my key file and I remember my passphrase</span></label>
+      <div class="stack" id="admin-step" hidden>
+        <p class="label">Last step: send this to your admin to get listed</p>
+        <div class="code tiny" id="public-line"></div>
+        <button class="btn quiet" id="copy" type="button">Copy my listing line</button>
+        <p class="error" id="copy-status" role="status" hidden></p>
+        <button class="btn" id="finish" type="button">Done</button>
+      </div>
+    </div>
+  </main>
+
+  <main class="card" id="view-done" hidden>
+    <h1>You're all set ✨</h1>
+    <p class="sub">Once your admin adds you, people can message you and your inbox will open.</p>
+    <a class="btn quiet" href="/inbox">Go to my inbox</a>
+    <nav class="links done-links"><a href="/">Send a message</a></nav>
+  </main>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speak: your chat</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/assets/chat.js"></script>
+</head>
+<body>
+  <div class="brand">Speak</div>
+
+  <main class="card" id="view-code">
+    <h1>Back for more?</h1>
+    <p class="sub">Enter your secret code to open your chat.</p>
+    <form id="code-form">
+      <div class="field">
+        <label for="code-input">Secret code</label>
+        <input type="text" id="code-input" required autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX-XXXX-…">
+      </div>
+      <p class="error" id="code-error" role="alert" hidden></p>
+      <button class="btn" id="open" type="submit" disabled>Open my chat</button>
+    </form>
+  </main>
+
+  <main class="card big" id="view-chat" hidden>
+    <div class="pane">
+      <div class="pane-head">
+        <span class="grow" id="chat-title">Your anonymous chat</span>
+        <button class="btn quiet small" id="refresh" type="button">Check for replies</button>
+      </div>
+      <div class="messages" id="messages" aria-live="polite"></div>
+      <p class="hint pane-status" id="chat-status" role="status" hidden></p>
+      <p class="composer-note" id="closed-note" hidden>This chat is stopped, so no more messages.</p>
+      <form class="composer" id="reply-form">
+        <textarea id="reply" required aria-label="Your reply" placeholder="Say something…"></textarea>
+        <p class="error" id="reply-error" role="alert" hidden></p>
+        <div class="row"><span class="counter" id="counter"></span><button class="btn small" id="send-reply" type="submit">Send</button></div>
+      </form>
+    </div>
+  </main>
+
+  <nav class="links"><a href="/">Send a new one</a></nav>
+</body>
+</html>

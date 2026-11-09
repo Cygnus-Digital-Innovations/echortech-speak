@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speak: inbox</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/assets/inbox.js"></script>
+</head>
+<body>
+  <div class="brand">Speak</div>
+
+  <main class="card" id="view-unlock">
+    <h1>Open your inbox</h1>
+    <p class="sub">Your key file and passphrase stay on this device.</p>
+    <form id="unlock-form">
+      <div class="field">
+        <label for="key-file">Key file</label>
+        <input type="file" id="key-file" accept=".json" required>
+      </div>
+      <div class="field">
+        <label for="passphrase">Passphrase</label>
+        <input type="password" id="passphrase" required autocomplete="current-password">
+      </div>
+      <p class="error" id="unlock-error" role="alert" hidden></p>
+      <button class="btn" id="unlock" type="submit" disabled>Unlock</button>
+    </form>
+  </main>
+
+  <main class="card big" id="view-inbox" hidden>
+    <div class="shell" id="shell">
+      <aside class="side">
+        <div class="side-head">
+          <h1 id="inbox-title">Inbox</h1>
+          <div class="tools">
+            <button class="btn quiet small" id="refresh" type="button">Refresh</button>
+            <button class="btn quiet small" id="toggle-hidden" type="button">Hidden</button>
+            <button class="btn quiet small" id="lock" type="button">Lock</button>
+          </div>
+        </div>
+        <p class="error side-message" id="list-error" role="alert" hidden></p>
+        <p class="hint side-message" id="list-status" role="status" hidden></p>
+        <p class="empty" id="empty" hidden></p>
+        <div class="list" id="thread-list"></div>
+      </aside>
+      <section class="main">
+        <p class="placeholder" id="placeholder">Pick a message to read it.</p>
+        <div class="pane" id="pane" hidden>
+          <div class="pane-head">
+            <button class="btn quiet small back" id="back" type="button">Back</button>
+            <span class="grow" id="pane-title">Anonymous</span>
+            <button class="btn quiet small" id="hide" type="button">Hide</button>
+            <button class="btn quiet small" id="close" type="button">Stop chat</button>
+          </div>
+          <div class="messages" id="messages" aria-live="polite"></div>
+          <p class="error pane-error" id="pane-error" role="alert" hidden></p>
+          <p class="composer-note" id="no-reply-note" hidden></p>
+          <form class="composer" id="reply-form">
+            <textarea id="reply" required aria-label="Your reply" placeholder="Reply…"></textarea>
+            <div class="row"><span class="counter" id="counter"></span><button class="btn small" id="send-reply" type="submit">Send</button></div>
+          </form>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="stop-dialog">
+    <h2>Stop this chat for good?</h2>
+    <p>Neither of you can send anything else, and this can't be undone. You can still read it.</p>
+    <div class="dialog-actions">
+      <button class="btn quiet" id="stop-cancel" type="button" autofocus>Cancel</button>
+      <button class="btn danger" id="stop-confirm" type="button">Stop chat</button>
+    </div>
+  </dialog>
+
+  <nav class="links"><a href="/">Send a message</a><a href="/setup">No key yet? Set up my inbox</a></nav>
+</body>
+</html>

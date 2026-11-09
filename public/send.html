@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speak</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/assets/send.js"></script>
+</head>
+<body>
+  <div class="brand">Speak</div>
+
+  <main class="card" id="view-compose">
+    <h1>Say it. Your name stays out of it.</h1>
+    <p class="sub">No login. Only they can read it.</p>
+    <p class="note" id="no-people" hidden>Nobody's set up to receive messages yet. Check back soon.</p>
+    <form id="compose">
+      <div class="field">
+        <label for="recipient">Who's it for?</label>
+        <select id="recipient" required>
+          <option value="">Pick someone</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="row"><label for="message">What's on your mind?</label><span class="counter" id="counter"></span></div>
+        <textarea id="message" required placeholder="Say what you actually think…"></textarea>
+        <p class="hint">Your writing style can still give you away, so keep identifying details out.</p>
+      </div>
+      <label class="check"><input type="checkbox" id="allow-reply"><span>Let them reply. You'll get a secret code to come back to the chat.</span></label>
+      <p class="note">Once it's sent, it's sent. It can't be edited or deleted.</p>
+      <p class="error" id="error" role="alert" hidden></p>
+      <button class="btn" id="send" type="submit" disabled>Send it</button>
+    </form>
+  </main>
+
+  <main class="card" id="view-code" hidden>
+    <h1>Sent. Now save your code</h1>
+    <p class="sub">It's your only way back to the chat. We can't recover it, and you won't see it again.</p>
+    <div class="stack">
+      <div class="code" id="code"></div>
+      <button class="btn quiet" id="copy" type="button">Copy code</button>
+      <p class="error" id="copy-status" role="status" hidden></p>
+      <label class="check"><input type="checkbox" id="saved"><span>I've saved this code somewhere private</span></label>
+      <button class="btn" id="continue" type="button" disabled>Continue</button>
+    </div>
+  </main>
+
+  <main class="card" id="view-sent" hidden>
+    <h1>Sent. It's out there now ✨</h1>
+    <p class="sub" id="sent-sub">Only they can open it.</p>
+    <button class="btn" id="again" type="button">Say something else</button>
+  </main>
+
+  <nav class="links" id="links"><a href="/chat">Got a secret code?</a><a href="/inbox">My inbox</a><a href="/setup">Set up my inbox</a></nav>
+</body>
+</html>
