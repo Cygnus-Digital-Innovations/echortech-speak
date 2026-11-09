@@ -4,13 +4,17 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { extname, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { createLoginChallenge } from "./crypto.ts";
-import { hasLeadingZeroBits, MAX_MESSAGES_PER_THREAD, validateDirectory, type DirectoryEntry, type PowSolution } from "./types.ts";
+import { hasLeadingZeroBits, MAX_MESSAGES_PER_THREAD, type PowSolution } from "./types.ts";
 
 const MAX_BODY_BYTES = 64 * 1024;
 const POW_TTL_MS = 5 * 60 * 1000;
 const LOGIN_TTL_MS = 2 * 60 * 1000;
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const INBOX_PAGE_SIZE = 100;
+const MAX_NAME_CHARS = 60;
+const MAX_PEOPLE = 1000;
+const REGISTRATION_WINDOW_MS = 10 * 60 * 1000;
+const MAX_REGISTRATIONS_PER_WINDOW = 20;
 const MAX_THREADS_PER_RECIPIENT = 2000;
 const THREAD_WINDOW_MS = 10 * 60 * 1000;
 const DEFAULT_MAX_THREADS_PER_WINDOW = 30;
@@ -47,7 +51,7 @@ class HttpError extends Error {
 
 export interface AppOptions {
   db: DatabaseSync;
-  directory: DirectoryEntry[];
+  inviteCode: string;
   publicDir: string;
   powBits: number;
   secureCookies: boolean;
@@ -101,34 +105,10 @@ function readBody(req: IncomingMessage): Promise<Body> {
   });
 }
 
-export function seedDirectory(db: DatabaseSync, directory: DirectoryEntry[]): void {
-  validateDirectory(directory);
-  const existing = db.prepare("SELECT public_key FROM reader_keys WHERE key_id = ?");
-  const upsert = db.prepare(
-    "INSERT INTO reader_keys (key_id, reader_name, public_key, status) VALUES (?, ?, ?, ?) " +
-      "ON CONFLICT (key_id) DO UPDATE SET reader_name = excluded.reader_name, status = excluded.status",
-  );
-  // Non-active rows go first so a person can swap to a new active key in one change.
-  const ordered = [...directory].sort((a, b) => Number(a.status === "active") - Number(b.status === "active"));
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    for (const entry of ordered) {
-      const key = Buffer.from(entry.publicKey, "base64url");
-      const row = existing.get(entry.keyId) as { public_key: Uint8Array } | undefined;
-      if (row && !key.equals(row.public_key)) {
-        throw new Error(`The public key for keyId ${entry.keyId} changed. Retire it and add a new entry with a new keyId`);
-      }
-      upsert.run(entry.keyId, entry.name, key, entry.status);
-    }
-    db.exec("COMMIT");
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
-}
-
 export function createApp(options: AppOptions): Server {
   const { db, publicDir, powBits, secureCookies } = options;
+  const inviteHash = sha256(Buffer.from(options.inviteCode.trim()));
+  let registrationWindow = { start: 0, count: 0 };
   const maxThreadsPerWindow = options.maxThreadsPerWindow ?? DEFAULT_MAX_THREADS_PER_WINDOW;
   const maxDatabaseBytes = options.maxDatabaseBytes ?? DEFAULT_MAX_DATABASE_BYTES;
   const powSecret = randomBytes(32);
@@ -245,6 +225,40 @@ export function createApp(options: AppOptions): Server {
       return { payload, signature: sign(payload).toString("base64url"), bits: powBits };
     }
 
+    if (method === "GET" && path === "/api/directory") {
+      const rows = db.prepare("SELECT key_id, reader_name, public_key FROM reader_keys WHERE status = 'active' ORDER BY lower(reader_name)").all() as unknown as { key_id: number; reader_name: string; public_key: Uint8Array }[];
+      return { people: rows.map((p) => ({ keyId: p.key_id, name: p.reader_name, publicKey: b64(p.public_key), status: "active" })) };
+    }
+
+    if (method === "POST" && (path === "/api/register" || path === "/api/register/check")) {
+      const body = await readBody(req);
+      checkPow(body.pow);
+      if (typeof body.inviteCode !== "string" || !timingSafeEqual(sha256(Buffer.from(body.inviteCode.trim())), inviteHash)) {
+        throw new HttpError(403, "That invite code isn't right");
+      }
+      const name = typeof body.name === "string" ? body.name.trim().replace(/\s+/g, " ") : "";
+      const nameChars = Array.from(name).length;
+      if (nameChars < 1 || nameChars > MAX_NAME_CHARS || /\p{C}/u.test(name)) throw new HttpError(400, "Please enter a valid name");
+      const nameOwner = db.prepare("SELECT public_key FROM reader_keys WHERE status = 'active' AND lower(reader_name) = lower(?)").get(name) as { public_key: Uint8Array } | undefined;
+      if (path === "/api/register/check") {
+        if (nameOwner) throw new HttpError(409, "That name is taken. Try adding your surname");
+        return { ok: true };
+      }
+      const publicKey = bytes(body.publicKey, 32, "key");
+      // A retry after a lost response should succeed rather than report a conflict.
+      if (nameOwner && publicKey.equals(nameOwner.public_key)) return { ok: true };
+      if (nameOwner) throw new HttpError(409, "That name is taken. Try adding your surname");
+      if (db.prepare("SELECT 1 FROM reader_keys WHERE public_key = ?").get(publicKey)) throw new HttpError(409, "This key is already registered");
+      const { total } = db.prepare("SELECT count(*) AS total FROM reader_keys WHERE status = 'active'").get() as { total: number };
+      if (total >= MAX_PEOPLE) throw new HttpError(429, "We can't add more people right now");
+      const now = Date.now();
+      if (now - registrationWindow.start >= REGISTRATION_WINDOW_MS) registrationWindow = { start: now, count: 0 };
+      if (registrationWindow.count >= MAX_REGISTRATIONS_PER_WINDOW) throw new HttpError(429, "Too many sign-ups right now. Try again in a few minutes");
+      db.prepare("INSERT INTO reader_keys (reader_name, public_key) VALUES (?, ?)").run(name, publicKey);
+      registrationWindow.count++;
+      return { ok: true };
+    }
+
     if (method === "POST" && path === "/api/threads") {
       const body = await readBody(req);
       checkPow(body.pow);
@@ -283,7 +297,7 @@ export function createApp(options: AppOptions): Server {
       const body = await readBody(req);
       const publicKey = bytes(body.publicKey, 32, "key");
       const key = db.prepare("SELECT key_id FROM reader_keys WHERE public_key = ? AND status <> 'revoked'").get(publicKey) as { key_id: number } | undefined;
-      if (!key) throw new HttpError(404, "This key isn't on the list yet. Ask your admin to add it");
+      if (!key) throw new HttpError(404, "This key isn't registered. Finish setting up your inbox first");
       const challengeId = `${key.key_id}.${Date.now() + LOGIN_TTL_MS}.${randomBytes(16).toString("base64url")}`;
       const { challenge } = createLoginChallenge(publicKey, createHmac("sha256", loginSecret).update(challengeId).digest());
       return { challengeId, challenge: b64(challenge) };

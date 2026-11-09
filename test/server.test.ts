@@ -22,14 +22,15 @@ import {
   sealThreadKey,
   type ReaderKeyPair,
 } from "../src/crypto";
-import { createApp, seedDirectory } from "../src/server";
-import { hasLeadingZeroBits, validateDirectory, type DirectoryEntry, type PowSolution } from "../src/types";
+import { createApp } from "../src/server";
+import { hasLeadingZeroBits, type DirectoryEntry, type PowSolution } from "../src/types";
 
 const b64 = (value: Uint8Array) => Buffer.from(value).toString("base64url");
 const unb64 = (value: string) => new Uint8Array(Buffer.from(value, "base64url"));
 const content = (text: string, author: "sender" | "recipient" = "sender") => ({ author, sentAt: new Date(), text });
 
 const POW_BITS = 4;
+const INVITE = "test-invite-code";
 let publicDir: string;
 let alice: ReaderKeyPair;
 let bob: ReaderKeyPair;
@@ -131,8 +132,9 @@ beforeEach(async () => {
     { keyId: 3, name: "Gone", publicKey: b64(retiree.publicKey), status: "retired" },
     { keyId: 4, name: "Removed", publicKey: b64(removed.publicKey), status: "revoked" },
   ];
-  seedDirectory(db, directory);
-  server = createApp({ db, directory, publicDir, powBits: POW_BITS, secureCookies: false, maxThreadsPerWindow: 3 });
+  const addKey = db.prepare("INSERT INTO reader_keys (key_id, reader_name, public_key, status) VALUES (?, ?, ?, ?)");
+  for (const entry of directory) addKey.run(entry.keyId, entry.name, unb64(entry.publicKey), entry.status);
+  server = createApp({ db, inviteCode: INVITE, publicDir, powBits: POW_BITS, secureCookies: false, maxThreadsPerWindow: 3 });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -405,7 +407,7 @@ describe("hardening", () => {
   });
 
   it("stops accepting messages when storage is full", async () => {
-    const full = createApp({ db, directory, publicDir, powBits: POW_BITS, secureCookies: false, maxDatabaseBytes: 1 });
+    const full = createApp({ db, inviteCode: INVITE, publicDir, powBits: POW_BITS, secureCookies: false, maxDatabaseBytes: 1 });
     await new Promise<void>((resolve) => full.listen(0, "127.0.0.1", resolve));
     const original = base;
     base = `http://127.0.0.1:${(full.address() as AddressInfo).port}`;
@@ -416,23 +418,63 @@ describe("hardening", () => {
     expect(res.status).toBe(507);
   });
 
-  it("refuses a changed key for an existing person", () => {
-    const changed = directory.map((e) => (e.keyId === 1 ? { ...e, publicKey: b64(generateReaderKeys().publicKey) } : e));
-    expect(() => seedDirectory(db, changed)).toThrow(/changed/);
+  const registration = async (overrides: Record<string, unknown> = {}, path = "/api/register") =>
+    call(path, { name: "New Person", inviteCode: INVITE, publicKey: b64(generateReaderKeys().publicKey), pow: await pow(), ...overrides });
+
+  it("registers someone who then appears and can log in", async () => {
+    const keys = generateReaderKeys();
+    expect((await registration({ publicKey: b64(keys.publicKey) })).status).toBe(200);
+    const { people } = (await call("/api/directory")).body;
+    const added = people.find((p: DirectoryEntry) => p.name === "New Person");
+    expect(added.publicKey).toBe(b64(keys.publicKey));
+    expect(await login(keys)).toMatch(/^sid=/);
+    expect((await sendOneWay("hello", added.keyId, keys)).res.status).toBe(200);
   });
 
-  it("lets someone switch to a new key in one change", () => {
-    const swapped: DirectoryEntry[] = [...directory.map((e) => (e.keyId === 1 ? { ...e, status: "retired" as const } : e)), { keyId: 5, name: "Alice", publicKey: b64(generateReaderKeys().publicKey), status: "active" }];
-    expect(() => seedDirectory(db, swapped)).not.toThrow();
+  it("only lists active people", async () => {
+    const names = (await call("/api/directory")).body.people.map((p: DirectoryEntry) => p.name);
+    expect(names).toEqual(["Alice", "Bob"]);
   });
 
-  it.each([
-    ["a malformed key", (d: DirectoryEntry[]) => [{ ...d[0]!, publicKey: "short" }]],
-    ["a duplicate keyId", (d: DirectoryEntry[]) => [d[0]!, { ...d[1]!, keyId: 1 }]],
-    ["two active keys for one name", (d: DirectoryEntry[]) => [d[0]!, { ...d[1]!, name: "Alice" }]],
-    ["an unknown status", (d: DirectoryEntry[]) => [{ ...d[0]!, status: "gone" as "active" }]],
-  ])("rejects a directory with %s", (_name, broken) => {
-    expect(() => validateDirectory(broken(directory))).toThrow();
+  it.each(["/api/register", "/api/register/check"])("rejects a wrong invite code at %s", async (path) => {
+    expect((await registration({ inviteCode: "wrong" }, path)).status).toBe(403);
+  });
+
+  it("requires a spam check", async () => {
+    expect((await registration({ pow: undefined })).status).toBe(400);
+  });
+
+  it("treats names as taken regardless of case and spacing", async () => {
+    expect((await registration({ name: "  aLiCe " })).status).toBe(409);
+    expect((await registration({ name: "ALICE" }, "/api/register/check")).status).toBe(409);
+  });
+
+  it("frees a name once revoked but not while retired keys are unrelated", async () => {
+    expect((await registration({ name: "Removed" })).status).toBe(200);
+  });
+
+  it("rejects a key already registered to someone else", async () => {
+    expect((await registration({ publicKey: b64(alice.publicKey) })).status).toBe(409);
+  });
+
+  it("succeeds on a retry of the same registration", async () => {
+    const publicKey = b64(generateReaderKeys().publicKey);
+    expect((await registration({ publicKey })).status).toBe(200);
+    expect((await registration({ publicKey })).status).toBe(200);
+    expect((await call("/api/directory")).body.people.filter((p: DirectoryEntry) => p.name === "New Person")).toHaveLength(1);
+  });
+
+  it.each(["", "   ", "x".repeat(61), "bad\u0000name", 7, null])("rejects invalid name %j", async (name) => {
+    expect((await registration({ name })).status).toBe(400);
+  });
+
+  it("rejects a malformed public key", async () => {
+    expect((await registration({ publicKey: "short" })).status).toBe(400);
+  });
+
+  it("limits how many people can sign up at once", async () => {
+    for (let i = 0; i < 20; i++) expect((await registration({ name: `Person ${i}` })).status).toBe(200);
+    expect((await registration({ name: "One Too Many" })).status).toBe(429);
   });
 });
 

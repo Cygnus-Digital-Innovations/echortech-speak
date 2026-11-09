@@ -11,11 +11,17 @@ import {
 import type { DirectoryEntry } from "../types";
 import { api, b64, boot, copyText, el, focusHeading, fromB64, showError, solvePow, warnBeforeLeaving, wireCounter, withBusy } from "./ui";
 
-declare const __DIRECTORY__: DirectoryEntry[];
-
 await boot(el<HTMLButtonElement>("send"), el("error"));
 
-const people = __DIRECTORY__.filter((person) => person.status === "active").sort((a, b) => a.name.localeCompare(b.name));
+let loadFailed = false;
+const people = await api<{ people: DirectoryEntry[] }>("/api/directory").then(
+  (data) => data.people,
+  () => {
+    loadFailed = true;
+    showError(el("error"), new Error("Couldn't load people. Refresh to try again"));
+    return [] as DirectoryEntry[];
+  },
+);
 const form = el<HTMLFormElement>("compose");
 const recipient = el<HTMLSelectElement>("recipient");
 const message = el<HTMLTextAreaElement>("message");
@@ -24,7 +30,7 @@ const sendButton = el<HTMLButtonElement>("send");
 const error = el("error");
 const resetCounter = wireCounter(message, el("counter"), MAX_MESSAGE_CHARS);
 
-if (people.length === 0) {
+if (people.length === 0 && !loadFailed) {
   form.hidden = true;
   el("no-people").hidden = false;
 }

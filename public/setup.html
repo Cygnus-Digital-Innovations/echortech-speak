@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Speak: setup</title>
+  <title>Say It: setup</title>
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/assets/setup.js"></script>
 </head>
 <body>
-  <div class="brand">Speak</div>
+  <div class="brand">Say It</div>
 
   <main class="card" id="view-form">
     <h1>Get your inbox</h1>
@@ -18,6 +18,11 @@
         <label for="name">Your name</label>
         <input type="text" id="name" required maxlength="60" autocomplete="name">
         <p class="hint">This is how people find you when sending.</p>
+      </div>
+      <div class="field">
+        <label for="invite">Company invite code</label>
+        <input type="text" id="invite" required autocomplete="off" spellcheck="false">
+        <p class="hint">Ask your team if you don't have it.</p>
       </div>
       <div class="field">
         <label for="passphrase">Passphrase</label>
@@ -41,19 +46,14 @@
       <button class="btn" id="download" type="button">Download key file</button>
       <p class="hint" id="download-hint" hidden>Check your downloads folder, then move it somewhere safe.</p>
       <label class="check"><input type="checkbox" id="saved" disabled><span>I've saved my key file and I remember my passphrase</span></label>
-      <div class="stack" id="admin-step" hidden>
-        <p class="label">Last step: send this to your admin to get listed</p>
-        <div class="code tiny" id="public-line"></div>
-        <button class="btn quiet" id="copy" type="button">Copy my listing line</button>
-        <p class="error" id="copy-status" role="status" hidden></p>
-        <button class="btn" id="finish" type="button">Done</button>
-      </div>
+      <p class="error" id="register-error" role="alert" hidden></p>
+      <button class="btn" id="finish" type="button" hidden>Done</button>
     </div>
   </main>
 
   <main class="card" id="view-done" hidden>
     <h1>You're all set ✨</h1>
-    <p class="sub">Once your admin adds you, people can message you and your inbox will open.</p>
+    <p class="sub">People can message you now, and your inbox is ready.</p>
     <a class="btn quiet" href="/inbox">Go to my inbox</a>
     <nav class="links done-links"><a href="/">Send a message</a></nav>
   </main>

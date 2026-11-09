@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds and restarts the Speak container on the shared server.
+# Builds and restarts the Say It container on the shared server.
 # Uses a named volume, so the database survives every deploy.
 set -euo pipefail
 
@@ -16,11 +16,12 @@ git archive --format=tar HEAD | ssh "$SERVER" 'set -e
   sudo docker run -d --name echortech-speak --restart unless-stopped \
     -p 127.0.0.1:3200:3000 \
     -v echortech-speak-data:/data \
+    --env-file "$HOME/.sayit.env" \
     --memory 256m \
     echortech-speak:latest
   sleep 4
   if ! curl -fsS -o /dev/null http://127.0.0.1:3200/; then
-    echo "Speak failed to start"
+    echo "Say It failed to start"
     sudo docker logs --tail 20 echortech-speak
     exit 1
   fi

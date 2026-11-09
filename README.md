@@ -1,4 +1,4 @@
-# EchorTech Speak
+# EchorTech Say It
 
 Anonymous, end-to-end encrypted messaging between EchorTech employees. Messages are encrypted in the sender's browser, so the server only ever stores scrambled data.
 
@@ -8,28 +8,26 @@ Anonymous, end-to-end encrypted messaging between EchorTech employees. Messages 
 npm install
 npm test
 npm run build
-npm start   # http://127.0.0.1:3000
+INVITE_CODE=dev-code npm start   # http://127.0.0.1:3000
 ```
 
 Requires Node 24 or newer.
 
 ## Add a person
 
-1. They open `/setup`, create their keys and save their key file.
-2. They send an admin their listing line.
-3. Add it to `config/directory.json` with the next unused `keyId`:
+People register themselves at `/setup` with the company invite code. Their browser creates their keys, and only the name and public key reach the server.
 
-   ```json
-   [{ "keyId": 1, "name": "Their name", "publicKey": "...", "status": "active" }]
-   ```
+The invite code is the `INVITE_CODE` environment variable. On the server it's in `~/.sayit.env`. To change it, edit that file and redeploy.
 
-4. Redeploy. Public keys are built into the send page so a database compromise can't swap them.
+To remove someone, or free up a name after a lost key, run:
 
-To remove someone, set their `status` to `revoked` and redeploy. They can no longer log in or receive messages.
+```bash
+sudo docker exec echortech-speak node src/admin.ts list
+sudo docker exec echortech-speak node src/admin.ts revoke "Their name"
+sudo docker restart echortech-speak
+```
 
-To give someone a new key, set the old entry to `retired`, which stops new messages but lets them keep reading old ones with the old key file. Then add a new entry with the same name and the next unused `keyId`.
-
-Never delete a listed key or change the `publicKey` of an existing `keyId`, because existing threads depend on it.
+Public keys are served from the server, so someone who fully compromised it could swap a key and read future messages sent to that person. Past messages stay protected.
 
 ## Deploy
 
@@ -37,6 +35,6 @@ Never delete a listed key or change the `publicKey` of an existing `keyId`, beca
 ./deploy/deploy.sh
 ```
 
-The app runs as a Docker container on the shared server, bound to `127.0.0.1:3200`, behind `deploy/nginx-speak.conf`. Keep nginx access logging off for this site, because it would record the IP addresses of anonymous senders.
+The app runs as a Docker container on the shared server, bound to `127.0.0.1:3200`, behind `deploy/nginx-sayit.conf`. Keep nginx access logging off for this site, because it would record the IP addresses of anonymous senders.
 
 The database is in the `echortech-speak-data` Docker volume.
