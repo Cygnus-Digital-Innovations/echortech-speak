@@ -1,5 +1,5 @@
 import sodium from "libsodium-wrappers-sumo";
-import { decryptMessage, initCrypto } from "../crypto";
+import { decryptWireMessage, initCrypto } from "../crypto";
 import { hasLeadingZeroBits, type PowSolution, type WireMessage } from "../types";
 
 export const b64 = (value: Uint8Array) => sodium.to_base64(value);
@@ -111,7 +111,7 @@ export function renderMessages(
     ...messages.map((message) => {
       const row = document.createElement("div");
       try {
-        const content = decryptMessage(threadKey, { threadId, seq: message.seq }, fromB64(message.ciphertext));
+        const content = decryptWireMessage(threadKey, threadId, message);
         row.className = `bubble ${content.author === myRole ? "mine" : "theirs"}`;
         row.textContent = content.text;
         const time = document.createElement("time");

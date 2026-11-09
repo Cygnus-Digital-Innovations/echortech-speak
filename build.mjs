@@ -1,8 +1,10 @@
 import { cpSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { build } from "esbuild";
+import { validateDirectory } from "./src/types.ts";
 
 const directoryPath = process.env.DIRECTORY_PATH ?? "config/directory.json";
 const directory = JSON.parse(readFileSync(directoryPath, "utf8"));
+validateDirectory(directory);
 
 rmSync("dist", { recursive: true, force: true });
 mkdirSync("dist/public/assets", { recursive: true });

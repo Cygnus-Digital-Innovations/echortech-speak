@@ -18,5 +18,11 @@ git archive --format=tar HEAD | ssh "$SERVER" 'set -e
     -v echortech-speak-data:/data \
     --memory 256m \
     echortech-speak:latest
+  sleep 4
+  if ! curl -fsS -o /dev/null http://127.0.0.1:3200/; then
+    echo "Speak failed to start"
+    sudo docker logs --tail 20 echortech-speak
+    exit 1
+  fi
   rm -rf ~/echortech-speak-build
   sudo docker image prune -f >/dev/null'

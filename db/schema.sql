@@ -5,7 +5,7 @@ CREATE TABLE reader_keys (
   key_id      INTEGER PRIMARY KEY,
   reader_name TEXT NOT NULL,
   public_key  BLOB NOT NULL UNIQUE CHECK (length(public_key) = 32),
-  status      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'retired'))
+  status      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'retired', 'revoked'))
 ) STRICT;
 
 CREATE UNIQUE INDEX one_active_key_per_reader
@@ -30,6 +30,7 @@ CREATE TABLE messages (
   thread_id  BLOB NOT NULL REFERENCES threads (id) ON DELETE RESTRICT,
   seq        INTEGER NOT NULL CHECK (seq >= 1),
   ciphertext BLOB NOT NULL CHECK (length(ciphertext) = 16424),
+  author     TEXT NOT NULL CHECK (author IN ('sender', 'recipient')),
   PRIMARY KEY (thread_id, seq)
 ) STRICT, WITHOUT ROWID;
 

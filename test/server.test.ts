@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import type { AddressInfo } from "node:net";
+import { connect, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Server } from "node:http";
@@ -9,6 +9,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import {
   answerLoginChallenge,
   decryptMessage,
+  decryptWireMessage,
   deriveFromCode,
   encryptMessage,
   generateReaderKeys,
@@ -22,7 +23,7 @@ import {
   type ReaderKeyPair,
 } from "../src/crypto";
 import { createApp, seedDirectory } from "../src/server";
-import { hasLeadingZeroBits, type DirectoryEntry, type PowSolution } from "../src/types";
+import { hasLeadingZeroBits, validateDirectory, type DirectoryEntry, type PowSolution } from "../src/types";
 
 const b64 = (value: Uint8Array) => Buffer.from(value).toString("base64url");
 const unb64 = (value: string) => new Uint8Array(Buffer.from(value, "base64url"));
@@ -32,6 +33,9 @@ const POW_BITS = 4;
 let publicDir: string;
 let alice: ReaderKeyPair;
 let bob: ReaderKeyPair;
+let retiree: ReaderKeyPair;
+let removed: ReaderKeyPair;
+let directory: DirectoryEntry[];
 let db: DatabaseSync;
 let server: Server;
 let base: string;
@@ -116,16 +120,19 @@ afterAll(() => rmSync(publicDir, { recursive: true, force: true }));
 beforeEach(async () => {
   alice = generateReaderKeys();
   bob = generateReaderKeys();
+  retiree = generateReaderKeys();
+  removed = generateReaderKeys();
   db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON");
   db.exec(readFileSync(new URL("../db/schema.sql", import.meta.url), "utf8"));
-  const directory: DirectoryEntry[] = [
+  directory = [
     { keyId: 1, name: "Alice", publicKey: b64(alice.publicKey), status: "active" },
     { keyId: 2, name: "Bob", publicKey: b64(bob.publicKey), status: "active" },
-    { keyId: 3, name: "Gone", publicKey: b64(generateReaderKeys().publicKey), status: "retired" },
+    { keyId: 3, name: "Gone", publicKey: b64(retiree.publicKey), status: "retired" },
+    { keyId: 4, name: "Removed", publicKey: b64(removed.publicKey), status: "revoked" },
   ];
   seedDirectory(db, directory);
-  server = createApp({ db, directory, publicDir, powBits: POW_BITS, secureCookies: false });
+  server = createApp({ db, directory, publicDir, powBits: POW_BITS, secureCookies: false, maxThreadsPerWindow: 3 });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -260,7 +267,7 @@ describe("chats", () => {
 
   it("stop at the message limit", async () => {
     const chat = await startChat();
-    const insert = db.prepare("INSERT INTO messages (thread_id, seq, ciphertext) VALUES (?, ?, ?)");
+    const insert = db.prepare("INSERT INTO messages (thread_id, seq, ciphertext, author) VALUES (?, ?, ?, 'sender')");
     for (let seq = 2; seq <= 200; seq++) insert.run(chat.threadId, seq, new Uint8Array(16424));
     const res = await call("/api/sender/messages", { accessToken: b64(chat.accessToken), seq: 201, ciphertext: b64(encryptMessage(chat.threadKey, { threadId: chat.threadId, seq: 201 }, content("x"))), pow: await pow() });
     expect(res.status).toBe(429);
@@ -273,12 +280,18 @@ describe("inbox access", () => {
     expect((await call("/api/inbox", undefined, "sid=made-up")).status).toBe(401);
   });
 
-  it("rejects a wrong login answer and one-time challenges", async () => {
+  it("rejects a wrong answer and won't accept the same answer twice", async () => {
     const start = await call("/api/login/start", { publicKey: b64(alice.publicKey) });
     const bad = await call("/api/login/finish", { challengeId: start.body.challengeId, answer: b64(new Uint8Array(32)) });
     expect(bad.status).toBe(401);
-    const right = answerLoginChallenge(unb64(start.body.challenge), alice);
-    expect((await call("/api/login/finish", { challengeId: start.body.challengeId, answer: b64(right) })).status).toBe(401);
+    const right = b64(answerLoginChallenge(unb64(start.body.challenge), alice));
+    expect((await call("/api/login/finish", { challengeId: start.body.challengeId, answer: right })).status).toBe(200);
+    expect((await call("/api/login/finish", { challengeId: start.body.challengeId, answer: right })).status).toBe(401);
+  });
+
+  it("rejects a forged challenge id", async () => {
+    const res = await call("/api/login/finish", { challengeId: `1.${Date.now() + 60000}.forged`, answer: b64(new Uint8Array(32)) });
+    expect(res.status).toBe(401);
   });
 
   it("rejects an unknown key", async () => {
@@ -313,6 +326,113 @@ describe("inbox access", () => {
       body: JSON.stringify({ challengeId: start.body.challengeId, answer: b64(answerLoginChallenge(unb64(start.body.challenge), alice)) }),
     });
     expect(response.headers.get("set-cookie")).toMatch(/HttpOnly; SameSite=Strict/);
+  });
+});
+
+describe("hardening", () => {
+  it("survives a malformed request target", async () => {
+    const port = (server.address() as AddressInfo).port;
+    const raw = await new Promise<string>((resolve) => {
+      let data = "";
+      const socket = connect(port, "127.0.0.1", () => socket.write("GET // HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"));
+      socket.on("data", (chunk) => (data += chunk));
+      socket.on("close", () => resolve(data));
+    });
+    expect(raw).toContain("400");
+    expect((await fetch(`${base}/`)).status).toBe(200);
+  });
+
+  it("only sends the session cookie to inbox routes", async () => {
+    const start = await call("/api/login/start", { publicKey: b64(alice.publicKey) });
+    const finish = await fetch(`${base}/api/login/finish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ challengeId: start.body.challengeId, answer: b64(answerLoginChallenge(unb64(start.body.challenge), alice)) }),
+    });
+    expect(finish.headers.get("set-cookie")).toContain("Path=/api/inbox;");
+  });
+
+  it("can't be locked out by requesting many login challenges", async () => {
+    for (let i = 0; i < 1100; i++) await call("/api/login/start", { publicKey: b64(alice.publicKey) });
+    expect(await login(alice)).toMatch(/^sid=/);
+  });
+
+  it("keeps revoked keys out but lets retired keys read old messages", async () => {
+    expect((await call("/api/login/start", { publicKey: b64(removed.publicKey) })).status).toBe(404);
+    expect(await login(retiree)).toMatch(/^sid=/);
+  });
+
+  it("ends the session on lock", async () => {
+    const cookie = await login(alice);
+    expect((await call("/api/inbox", undefined, cookie)).status).toBe(200);
+    await call("/api/inbox/logout", {}, cookie);
+    expect((await call("/api/inbox", undefined, cookie)).status).toBe(401);
+  });
+
+  it("catches a sender forging a message as the recipient", async () => {
+    const chat = await startChat();
+    const forged = encryptMessage(chat.threadKey, { threadId: chat.threadId, seq: 2 }, content("I said this", "recipient"));
+    await call("/api/sender/messages", { accessToken: b64(chat.accessToken), seq: 2, ciphertext: b64(forged), pow: await pow() });
+    const cookie = await login(alice);
+    const { messages } = (await call(`/api/inbox/${b64(chat.threadId)}/messages`, undefined, cookie)).body;
+    expect(messages[1].author).toBe("sender");
+    expect(() => decryptWireMessage(chat.threadKey, chat.threadId, messages[1])).toThrow();
+    expect(decryptWireMessage(chat.threadKey, chat.threadId, messages[0]).text).toBe("can we talk?");
+  });
+
+  it("pages through a large inbox", async () => {
+    const thread = db.prepare("INSERT INTO threads (id, recipient_key_id, sealed_thread_key, status) VALUES (?, 1, ?, 'closed')");
+    const message = db.prepare("INSERT INTO messages (thread_id, seq, ciphertext, author) VALUES (?, 1, ?, 'sender')");
+    for (let i = 0; i < 105; i++) {
+      const id = newThreadId();
+      thread.run(id, new Uint8Array(80));
+      message.run(id, new Uint8Array(16424));
+    }
+    const cookie = await login(alice);
+    const first = (await call("/api/inbox", undefined, cookie)).body;
+    expect(first.threads).toHaveLength(100);
+    const second = (await call(`/api/inbox?after=${first.nextAfter}`, undefined, cookie)).body;
+    expect(second.threads).toHaveLength(5);
+    expect(second.nextAfter).toBeNull();
+    const ids = new Set([...first.threads, ...second.threads].map((t: { id: string }) => t.id));
+    expect(ids.size).toBe(105);
+  });
+
+  it("limits how fast one person can be flooded, without affecting others", async () => {
+    for (let i = 0; i < 3; i++) expect((await sendOneWay()).res.status).toBe(200);
+    expect((await sendOneWay()).res.status).toBe(429);
+    expect((await sendOneWay("x", 2, bob)).res.status).toBe(200);
+  });
+
+  it("stops accepting messages when storage is full", async () => {
+    const full = createApp({ db, directory, publicDir, powBits: POW_BITS, secureCookies: false, maxDatabaseBytes: 1 });
+    await new Promise<void>((resolve) => full.listen(0, "127.0.0.1", resolve));
+    const original = base;
+    base = `http://127.0.0.1:${(full.address() as AddressInfo).port}`;
+    const { res } = await sendOneWay();
+    base = original;
+    full.closeAllConnections();
+    await new Promise((resolve) => full.close(resolve));
+    expect(res.status).toBe(507);
+  });
+
+  it("refuses a changed key for an existing person", () => {
+    const changed = directory.map((e) => (e.keyId === 1 ? { ...e, publicKey: b64(generateReaderKeys().publicKey) } : e));
+    expect(() => seedDirectory(db, changed)).toThrow(/changed/);
+  });
+
+  it("lets someone switch to a new key in one change", () => {
+    const swapped: DirectoryEntry[] = [...directory.map((e) => (e.keyId === 1 ? { ...e, status: "retired" as const } : e)), { keyId: 5, name: "Alice", publicKey: b64(generateReaderKeys().publicKey), status: "active" }];
+    expect(() => seedDirectory(db, swapped)).not.toThrow();
+  });
+
+  it.each([
+    ["a malformed key", (d: DirectoryEntry[]) => [{ ...d[0]!, publicKey: "short" }]],
+    ["a duplicate keyId", (d: DirectoryEntry[]) => [d[0]!, { ...d[1]!, keyId: 1 }]],
+    ["two active keys for one name", (d: DirectoryEntry[]) => [d[0]!, { ...d[1]!, name: "Alice" }]],
+    ["an unknown status", (d: DirectoryEntry[]) => [{ ...d[0]!, status: "gone" as "active" }]],
+  ])("rejects a directory with %s", (_name, broken) => {
+    expect(() => validateDirectory(broken(directory))).toThrow();
   });
 });
 

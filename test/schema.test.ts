@@ -17,7 +17,7 @@ const addThread = (id: Buffer, overrides: { token?: Buffer | null; status?: stri
     .run(id, overrides.keyId ?? 1, overrides.sealed ?? blob(80), overrides.token === undefined ? blob(32) : overrides.token, overrides.status ?? "open");
 
 const addMessage = (threadId: Buffer, seq: number, size = 16424) =>
-  db.prepare("INSERT INTO messages (thread_id, seq, ciphertext) VALUES (?, ?, ?)").run(threadId, seq, blob(size));
+  db.prepare("INSERT INTO messages (thread_id, seq, ciphertext, author) VALUES (?, ?, ?, 'sender')").run(threadId, seq, blob(size));
 
 beforeEach(() => {
   db = new DatabaseSync(":memory:");
@@ -103,6 +103,12 @@ describe("messages", () => {
     addThread(id);
     expect(() => addMessage(id, 1, 100)).toThrow();
     expect(() => addMessage(blob(16), 1)).toThrow();
+  });
+
+  it("rejects an unknown author", () => {
+    const id = blob(16);
+    addThread(id);
+    expect(() => db.prepare("INSERT INTO messages (thread_id, seq, ciphertext, author) VALUES (?, 1, ?, 'nobody')").run(id, blob(16424))).toThrow();
   });
 
   it("cannot be deleted or changed once sent", () => {

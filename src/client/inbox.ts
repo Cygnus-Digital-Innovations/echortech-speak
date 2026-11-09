@@ -1,6 +1,6 @@
 import {
   answerLoginChallenge,
-  decryptMessage,
+  decryptWireMessage,
   encryptMessage,
   MAX_MESSAGE_CHARS,
   openKeyFile,
@@ -9,7 +9,7 @@ import {
   type ReaderKeyPair,
 } from "../crypto";
 import type { WireMessage } from "../types";
-import { api, ApiError, b64, boot, el, focusElement, focusHeading, fromB64, renderMessages, showError, wireCounter, withBusy } from "./ui";
+import { api, ApiError, b64, boot, el, focusElement, focusHeading, fromB64, nextFrame, renderMessages, showError, wireCounter, withBusy } from "./ui";
 
 await boot(el<HTMLButtonElement>("unlock"), el("unlock-error"));
 
@@ -68,6 +68,13 @@ function lockOut(message: string): void {
   threads = [];
   openId = null;
   drafts.clear();
+  messages.replaceChildren();
+  list.replaceChildren();
+  replyInput.value = "";
+  resetCounter();
+  pane.hidden = true;
+  el("placeholder").hidden = false;
+  el("shell").classList.remove("reading");
   document.body.classList.remove("wide");
   el("view-inbox").hidden = true;
   el("view-unlock").hidden = false;
@@ -86,12 +93,17 @@ function fail(failure: unknown): void {
 const listed = (id: string | null) => threads.find((thread) => thread.id === id);
 
 function prepare(summary: ThreadSummary): ListedThread {
+  let threadKey: Uint8Array;
   try {
-    const threadKey = openThreadKey(fromB64(summary.sealedThreadKey), keys!);
-    const content = decryptMessage(threadKey, { threadId: fromB64(summary.id), seq: summary.last.seq }, fromB64(summary.last.ciphertext));
-    return { ...summary, threadKey, preview: content.text, sentAt: content.sentAt.getTime() };
+    threadKey = openThreadKey(fromB64(summary.sealedThreadKey), keys!);
   } catch {
     return { ...summary, threadKey: null, preview: "Couldn't open this one", sentAt: 0 };
+  }
+  try {
+    const content = decryptWireMessage(threadKey, fromB64(summary.id), summary.last);
+    return { ...summary, threadKey, preview: content.text, sentAt: content.sentAt.getTime() };
+  } catch {
+    return { ...summary, threadKey, preview: "This message couldn't be shown", sentAt: 0 };
   }
 }
 
@@ -134,8 +146,19 @@ function renderList(): void {
 }
 
 async function loadInbox(): Promise<void> {
-  const { threads: summaries } = await api<{ threads: ThreadSummary[] }>("/api/inbox");
-  threads = summaries.map(prepare);
+  const known = new Map(threads.map((thread) => [thread.id, thread]));
+  const loaded: ListedThread[] = [];
+  let after: string | null = null;
+  do {
+    const page: { threads: ThreadSummary[]; nextAfter: string | null } = await api(`/api/inbox${after ? `?after=${after}` : ""}`);
+    for (const summary of page.threads) {
+      const previous = known.get(summary.id);
+      loaded.push(previous?.threadKey && previous.last.seq === summary.last.seq ? { ...previous, ...summary } : prepare(summary));
+    }
+    after = page.nextAfter;
+    await nextFrame();
+  } while (after);
+  threads = loaded;
   renderList();
 }
 
@@ -245,7 +268,11 @@ el("toggle-hidden").addEventListener("click", () => {
   showingHidden = !showingHidden;
   renderList();
 });
-el("lock").addEventListener("click", () => location.reload());
+el("lock").addEventListener("click", () => {
+  void api("/api/inbox/logout", {})
+    .catch(() => undefined)
+    .finally(() => location.reload());
+});
 
 hideButton.addEventListener("click", () => {
   const thread = listed(openId);
@@ -308,8 +335,10 @@ replyForm.addEventListener("submit", (event) => {
       replyInput.value = "";
       resetCounter();
       try {
-        await loadInbox();
         await openThread(thread.id);
+        const latest = openMessages.at(-1);
+        if (latest) Object.assign(thread, prepare({ ...thread, last: latest }));
+        renderList();
       } catch {
         fail(new Error("Sent, but couldn't refresh the chat"));
       }

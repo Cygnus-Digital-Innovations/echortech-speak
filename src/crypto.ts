@@ -1,4 +1,5 @@
 import sodium from "libsodium-wrappers-sumo";
+import type { WireMessage } from "./types.ts";
 
 export const MAX_MESSAGE_CHARS = 4000;
 export const THREAD_ID_BYTES = 16;
@@ -274,11 +275,23 @@ export function decryptMessage(
   };
 }
 
-export function createLoginChallenge(recipientPublicKey: Uint8Array): {
+// The server records which side posted each message. Both sides hold the
+// thread key, so the author inside the encryption alone could be forged.
+export function decryptWireMessage(threadKey: Uint8Array, threadId: Uint8Array, message: WireMessage): MessageContent {
+  const content = decryptMessage(threadKey, { threadId, seq: message.seq }, sodium.from_base64(message.ciphertext));
+  if (content.author !== message.author) throw new CryptoError("Message author doesn't match");
+  return content;
+}
+
+export function createLoginChallenge(
+  recipientPublicKey: Uint8Array,
+  answer: Uint8Array = sodium.randombytes_buf(LOGIN_RANDOM_BYTES),
+): {
   challenge: Uint8Array;
   expectedAnswer: Uint8Array;
 } {
-  const expectedAnswer = sodium.randombytes_buf(LOGIN_RANDOM_BYTES);
+  if (answer.length !== LOGIN_RANDOM_BYTES) throw new CryptoError("Invalid login answer");
+  const expectedAnswer = answer;
   const plain = new Uint8Array(LOGIN_PREFIX.length + LOGIN_RANDOM_BYTES);
   plain.set(LOGIN_PREFIX);
   plain.set(expectedAnswer, LOGIN_PREFIX.length);

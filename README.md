@@ -25,7 +25,11 @@ Requires Node 24 or newer.
 
 4. Redeploy. Public keys are built into the send page so a database compromise can't swap them.
 
-To remove someone, set their `status` to `retired` and redeploy. Never delete a listed key, because their existing threads depend on it.
+To remove someone, set their `status` to `revoked` and redeploy. They can no longer log in or receive messages.
+
+To give someone a new key, set the old entry to `retired`, which stops new messages but lets them keep reading old ones with the old key file. Then add a new entry with the same name and the next unused `keyId`.
+
+Never delete a listed key or change the `publicKey` of an existing `keyId`, because existing threads depend on it.
 
 ## Deploy
 
