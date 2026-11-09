@@ -5,9 +5,9 @@ Internal anonymous messaging for EchorTech. Anyone can message a coworker withou
 
 ## Tokens
 Source of truth: `public/style.css` (`:root`). System font only, because outside fonts would leak visits.
-- Canvas: pale lavender to blush to peach gradient, fixed to the viewport. Keep it low contrast
+- Canvas: pale mint gradient, fixed to the viewport. Keep it low contrast
 - Surface: white floating card, 28px radius
-- Accent: violet, for interactive elements only
+- Accent: deep teal, for interactive elements and the sender's own chat bubbles
 - Status: red for errors, amber for "this can't be undone" notes
 - Spacing: 4px base
 
@@ -22,9 +22,13 @@ Single-purpose pages use one centred card, 460px wide. The inbox uses one wide f
 | Code box | `.code` | Secret code, shown once | Normal text |
 | Bubble | `.bubble.mine` / `.bubble.theirs` | Chat messages | Anything else |
 
+## Navigation
+Every page shares one top menu: Send, Check replies, My inbox, Get an inbox. The menu hides while a one-time secret code is on screen.
+
 ## States
 Errors appear in `.error` under the form, and typed text is kept. Long work changes the button label ("Locking it…"). Empty lists say what happens next.
 
 ## Decisions
+- 2026-11-09: Moved to teal on soft mint, and replaced footer links with one top menu to make the product feel simpler.
 - 2026-11-09: Layout based on Navan's gradient-and-card screen. Colours softened from a bold gradient to pale tones for a cleaner, more professional feel.
 - 2026-11-09: No third-party scripts, fonts or images, to protect anonymity.

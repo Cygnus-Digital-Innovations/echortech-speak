@@ -8,7 +8,10 @@
   <script type="module" src="/assets/inbox.js"></script>
 </head>
 <body>
-  <div class="brand">Say It</div>
+  <header class="top">
+    <a class="brand" href="/">Say It</a>
+    <nav class="menu" aria-label="Main"><a href="/">Send</a><a href="/chat">Check replies</a><a href="/inbox" aria-current="page">My inbox</a><a href="/setup">Get an inbox</a></nav>
+  </header>
 
   <main class="card" id="view-unlock">
     <h1>Open your inbox</h1>
@@ -73,6 +76,5 @@
     </div>
   </dialog>
 
-  <nav class="links"><a href="/">Send a message</a><a href="/setup">No key yet? Set up my inbox</a></nav>
 </body>
 </html>

@@ -8,7 +8,10 @@
   <script type="module" src="/assets/send.js"></script>
 </head>
 <body>
-  <div class="brand">Say It</div>
+  <header class="top">
+    <a class="brand" href="/">Say It</a>
+    <nav class="menu" aria-label="Main" id="links"><a href="/" aria-current="page">Send</a><a href="/chat">Check replies</a><a href="/inbox">My inbox</a><a href="/setup">Get an inbox</a></nav>
+  </header>
 
   <main class="card" id="view-compose">
     <h1>Say it. Your name stays out of it.</h1>
@@ -51,6 +54,5 @@
     <button class="btn" id="again" type="button">Say something else</button>
   </main>
 
-  <nav class="links" id="links"><a href="/chat">Got a secret code?</a><a href="/inbox">My inbox</a><a href="/setup">Set up my inbox</a></nav>
 </body>
 </html>
