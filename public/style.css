@@ -54,7 +54,7 @@ h1 { margin: 0 0 8px; font-size: 2rem; line-height: 1.1; letter-spacing: -0.03em
 .sub { margin: 0 0 24px; color: var(--muted); }
 form { display: grid; gap: 16px; }
 .field { display: grid; gap: 6px; }
-.field > label, .label { font-weight: 650; font-size: 0.9rem; }
+.field > label, .field > .row > label, .label { font-weight: 650; font-size: 0.9rem; }
 .hint { font-size: 0.85rem; color: var(--muted); margin: 0; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
@@ -113,6 +113,32 @@ a.btn { display: grid; place-items: center; text-decoration: none; }
 .counter { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .counter.over { color: var(--danger); font-weight: 700; }
 
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+legend { padding: 0; margin-bottom: 4px; }
+.hint a, .sub a { color: var(--accent-dark); }
+.link-button { min-height: 24px; padding: 0; border: 0; background: none; color: var(--accent-dark); font: inherit; font-size: 0.85rem; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.picker { position: relative; }
+.picker input { padding-inline-end: 36px; }
+.picker-arrow { position: absolute; inset-inline-end: 14px; top: 12px; color: var(--muted); pointer-events: none; }
+.picker ul { position: absolute; z-index: 5; inset-inline: 0; top: calc(100% + 4px); margin: 0; padding: 6px; max-height: 240px; overflow-y: auto; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-field); box-shadow: 0 12px 30px rgb(15 80 70 / 14%); }
+.picker li { min-height: 44px; display: flex; align-items: center; padding: 0 12px; border-radius: 12px; cursor: pointer; }
+.picker li:hover, .picker li.active { background: var(--soft); }
+.picker .picker-empty { color: var(--muted); cursor: default; }
+.picker .picker-empty:hover { background: none; }
+.chat-list { padding: 0; margin-bottom: 16px; }
+.paste { margin-top: 8px; }
+.paste summary { min-height: 24px; color: var(--accent-dark); font-size: 0.9rem; font-weight: 650; cursor: pointer; }
+.paste form { margin-top: 12px; }
+.forget { display: block; margin-top: 16px; color: var(--muted); font-weight: 600; }
+.device-code { padding: 0 16px 12px; }
+.sent-tools { padding: 8px 20px 16px; display: grid; gap: 8px; justify-items: start; }
+.sent-link { margin-bottom: 12px; }
+#view-sent .note, #view-sent #backup { margin-bottom: 12px; }
+#view-opening .btn { margin-top: 16px; }
+.tabs { display: flex; gap: 4px; padding: 0 12px 12px; }
+.tab { flex: 1; min-height: 44px; border: 0; border-radius: 12px; background: none; color: var(--muted); font: inherit; font-size: 0.9rem; font-weight: 650; cursor: pointer; }
+.tab:hover { background: var(--soft); }
+.tab[aria-pressed="true"] { background: var(--line); color: var(--ink); }
 .links { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center; }
 .links a { color: var(--accent-dark); font-size: 0.9rem; min-height: 24px; }
 
@@ -155,18 +181,11 @@ body.wide { justify-content: flex-start; }
 .done-links { margin-top: 16px; }
 
 dialog { width: min(420px, calc(100vw - 32px)); padding: 28px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); }
-dialog::backdrop { background: rgb(29 21 48 / 45%); }
+dialog::backdrop { background: rgb(18 48 43 / 45%); }
 dialog h2 { margin: 0 0 8px; font-size: 1.35rem; letter-spacing: -0.02em; }
 dialog p { margin: 0 0 20px; color: var(--muted); }
 .dialog-actions { display: flex; gap: 12px; }
 
-@media (max-height: 500px) {
-  body.wide { justify-content: flex-start; }
-  .card.big { height: auto; overflow: visible; }
-  .shell { height: auto; }
-  .messages { min-height: 220px; max-height: 60vh; }
-  .composer textarea { min-height: 44px; }
-}
 
 @media (max-width: 720px) {
   .card { padding: 24px; }
@@ -181,6 +200,14 @@ dialog p { margin: 0 0 20px; color: var(--muted); }
   .shell.reading .main { display: flex; }
   .back { display: inline-block; }
   .bubble { max-width: 88%; }
+}
+
+@media (max-height: 500px) {
+  body.wide { justify-content: flex-start; }
+  .card.big { height: auto; overflow: visible; }
+  .shell { height: auto; }
+  .messages { min-height: 220px; max-height: 60vh; }
+  .composer textarea { min-height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

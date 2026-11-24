@@ -17,7 +17,7 @@ Requires Node 24 or newer.
 
 People register themselves at `/setup` with the company invite code. Their browser creates their keys, and only the name and public key reach the server.
 
-The invite code is the `INVITE_CODE` environment variable. On the server it's in `~/.sayit.env`. To change it, edit that file and redeploy.
+The company code is the `INVITE_CODE` environment variable, and capitals don't matter. On the server it's in `~/.sayit.env`. To change it, edit that file and redeploy.
 
 To remove someone, or free up a name after a lost key, run:
 
@@ -28,6 +28,10 @@ sudo docker restart echortech-speak
 ```
 
 Public keys are served from the server, so someone who fully compromised it could swap a key and read future messages sent to that person. Past messages stay protected.
+
+## What the browser remembers
+
+Senders' chat codes and, when someone stays signed in, their unlocked key are kept in that browser's storage so they aren't asked again. Signing out clears the key and the chats tied to it. Removing chats clears the rest.
 
 ## Deploy
 

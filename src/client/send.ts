@@ -1,5 +1,6 @@
 import {
   deriveFromCode,
+  deriveSenderCode,
   encryptMessage,
   hashAccessToken,
   MAX_MESSAGE_CHARS,
@@ -9,32 +10,21 @@ import {
   sealThreadKey,
 } from "../crypto";
 import type { DirectoryEntry } from "../types";
+import { rememberedKeys, saveCode } from "./device";
+import { findSentChats } from "./sent";
 import { api, b64, boot, copyText, el, focusHeading, fromB64, showError, solvePow, warnBeforeLeaving, wireCounter, withBusy } from "./ui";
 
 await boot(el<HTMLButtonElement>("send"), el("error"));
 
-let loadFailed = false;
-const people = await api<{ people: DirectoryEntry[] }>("/api/directory").then(
-  (data) => data.people,
-  () => {
-    loadFailed = true;
-    showError(el("error"), new Error("Couldn't load people. Refresh to try again"));
-    return [] as DirectoryEntry[];
-  },
-);
+const people = JSON.parse(el("people-data").textContent || "[]") as DirectoryEntry[];
 const form = el<HTMLFormElement>("compose");
-const recipient = el<HTMLSelectElement>("recipient");
+const recipient = el<HTMLInputElement>("recipient");
 const message = el<HTMLTextAreaElement>("message");
 const allowReply = el<HTMLInputElement>("allow-reply");
 const sendButton = el<HTMLButtonElement>("send");
 const error = el("error");
 const resetCounter = wireCounter(message, el("counter"), MAX_MESSAGE_CHARS);
 
-if (people.length === 0 && !loadFailed) {
-  form.hidden = true;
-  el("no-people").hidden = false;
-}
-for (const person of people) recipient.add(new Option(person.name, String(person.keyId)));
 
 function show(view: string): void {
   for (const id of ["view-compose", "view-code", "view-sent"]) el(id).hidden = id !== view;
@@ -46,20 +36,32 @@ const updateSendLabel = () => {
   const person = people.find((p) => String(p.keyId) === recipient.value);
   sendButton.textContent = person ? `Send to ${person.name}` : "Send it";
 };
-recipient.addEventListener("change", updateSendLabel);
+recipient.addEventListener("change", () => {
+  el("recipient-error").hidden = true;
+  updateSendLabel();
+});
+// Anything chosen before this script finished loading should still count.
+updateSendLabel();
+el("signed-in-note").hidden = rememberedKeys() === null;
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   error.hidden = true;
   const person = people.find((p) => String(p.keyId) === recipient.value);
   if (!person) {
-    showError(error, new Error("Pick who this is for"));
+    showError(el("recipient-error"), new Error("Pick who this is for"));
+    el("recipient-search").focus();
     return;
   }
   void withBusy(sendButton, "Locking it…", async () => {
     try {
-      const code = allowReply.checked ? newSecretCode() : null;
-      const derived = code ? deriveFromCode(code) : null;
+      let code: string | null = null;
+      let derived: ReturnType<typeof deriveFromCode> | null = null;
+      if (allowReply.checked) {
+        const keys = rememberedKeys();
+        code = keys ? deriveSenderCode(keys.privateKey, (await findSentChats(keys.privateKey)).nextIndex) : newSecretCode();
+        derived = deriveFromCode(code);
+      }
       const threadKey = derived?.threadKey ?? newOneWayThreadKey();
       const threadId = newThreadId();
       const ciphertext = encryptMessage(threadKey, { threadId, seq: 1 }, { author: "sender", sentAt: new Date(), text: message.value });
@@ -73,8 +75,15 @@ form.addEventListener("submit", (event) => {
       });
       message.value = "";
       resetCounter();
-      el("sent-sub").textContent = `Only ${person.name} can open it.`;
-      if (code) {
+      const remembered = code !== null && saveCode(code);
+      el("sent-sub").textContent = remembered ? `Only ${person.name} can open it. Their replies will show in Messages.` : code ? `Only ${person.name} can open it. Paste your code in Messages to see replies.` : `Only ${person.name} can open it.`;
+      el("see-replies").hidden = !code;
+      const browserOnly = remembered && rememberedKeys() === null;
+      el("sent-note").hidden = !browserOnly;
+      el("backup").hidden = !browserOnly;
+      el("backup-block").hidden = true;
+      el("backup-code").textContent = code ?? "";
+      if (code && !remembered) {
         el("code").textContent = code;
         addEventListener("beforeunload", warnBeforeLeaving);
         show("view-code");
@@ -101,6 +110,10 @@ continueButton.addEventListener("click", () => {
   el("copy").textContent = "Copy code";
   show("view-sent");
 });
+el("show-backup").addEventListener("click", () => {
+  el("backup-block").hidden = false;
+});
+el("copy-backup").addEventListener("click", () => copyText(el("backup-code").textContent ?? "", el("copy-backup"), "Copied ✓", el("copy-backup-status")));
 el("again").addEventListener("click", () => {
   form.reset();
   resetCounter();

@@ -11,6 +11,7 @@ import {
   decryptMessage,
   decryptWireMessage,
   deriveFromCode,
+  deriveSenderCode,
   encryptMessage,
   generateReaderKeys,
   hashAccessToken,
@@ -112,6 +113,7 @@ beforeAll(async () => {
   publicDir = mkdtempSync(join(tmpdir(), "speak-"));
   mkdirSync(join(publicDir, "assets"));
   for (const page of ["send", "chat", "inbox", "setup"]) writeFileSync(join(publicDir, `${page}.html`), `<h1>${page}</h1>`);
+  writeFileSync(join(publicDir, "send.html"), '<script type="application/json" id="p"><!--PEOPLE--></script>');
   writeFileSync(join(publicDir, "style.css"), "body{}");
   writeFileSync(join(publicDir, "assets", "send.js"), "1");
 });
@@ -438,6 +440,47 @@ describe("hardening", () => {
 
   it.each(["/api/register", "/api/register/check"])("rejects a wrong invite code at %s", async (path) => {
     expect((await registration({ inviteCode: "wrong" }, path)).status).toBe(403);
+  });
+
+  it("accepts the company code in any case", async () => {
+    expect((await registration({ inviteCode: ` ${INVITE.toUpperCase()} ` })).status).toBe(200);
+  });
+
+  it("builds active people into the send page safely", async () => {
+    await registration({ name: "</script><b>x" });
+    const html = await (await fetch(`${base}/`)).text();
+    expect(html).toContain("Alice");
+    expect(html).not.toContain("Removed");
+    expect(html).not.toContain("</script><b>");
+    expect(html).toContain("\\u003c/script");
+  });
+
+  it("finds chats started with a private key, without identifying the sender", async () => {
+    const owner = generateReaderKeys();
+    const code = deriveSenderCode(owner.privateKey, 0);
+    expect(deriveSenderCode(owner.privateKey, 0)).toBe(code);
+    expect(deriveSenderCode(owner.privateKey, 1)).not.toBe(code);
+    expect(deriveSenderCode(generateReaderKeys().privateKey, 0)).not.toBe(code);
+    const { threadKey, accessToken } = deriveFromCode(code);
+    const threadId = newThreadId();
+    await call("/api/threads", {
+      id: b64(threadId),
+      recipientKeyId: 1,
+      sealedThreadKey: b64(sealThreadKey(threadKey, alice.publicKey)),
+      accessTokenHash: b64(hashAccessToken(accessToken)),
+      ciphertext: b64(encryptMessage(threadKey, { threadId, seq: 1 }, content("hello"))),
+      pow: await pow(),
+    });
+    const miss = deriveFromCode(deriveSenderCode(owner.privateKey, 1)).accessToken;
+    const { threads } = (await call("/api/sender/lookup", { accessTokens: [b64(accessToken), b64(miss)] })).body;
+    expect(threads[0].id).toBe(b64(threadId));
+    expect(threads[0].recipient).toBe("Alice");
+    expect(threads[1]).toBeNull();
+    expect(decryptWireMessage(threadKey, threadId, threads[0].last).text).toBe("hello");
+  });
+
+  it.each([[[]], ["nope"], [Array(21).fill("x".repeat(43))], [["short"]]])("rejects a bad chat lookup %#", async (accessTokens) => {
+    expect((await call("/api/sender/lookup", { accessTokens })).status).toBe(400);
   });
 
   it("requires a spam check", async () => {

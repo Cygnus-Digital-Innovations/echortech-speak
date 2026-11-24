@@ -177,6 +177,14 @@ export function deriveFromCode(code: string): { threadKey: Uint8Array; accessTok
   };
 }
 
+// Lets someone with an inbox reopen chats they started without saving a code.
+// Codes come from the private key, so the server can't tell whose they are.
+export function deriveSenderCode(privateKey: Uint8Array, index: number): string {
+  if (!Number.isSafeInteger(index) || index < 0) throw new CryptoError("Invalid chat number");
+  const master = sodium.crypto_generichash(sodium.crypto_kdf_KEYBYTES, privateKey, sodium.from_string("say-it-sender-codes"));
+  return encodeCode(sodium.crypto_kdf_derive_from_key(CODE_BYTES, index + 1, "spksendr", master));
+}
+
 export function hashAccessToken(accessToken: Uint8Array): Uint8Array {
   return sodium.crypto_hash_sha256(accessToken);
 }

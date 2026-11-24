@@ -6,7 +6,7 @@ mkdirSync("dist/public/assets", { recursive: true });
 cpSync("public", "dist/public", { recursive: true });
 
 await build({
-  entryPoints: ["send", "chat", "inbox", "setup"].map((page) => `src/client/${page}.ts`),
+  entryPoints: ["picker", "early", "send", "inbox", "setup"].map((page) => `src/client/${page}.ts`),
   outdir: "dist/public/assets",
   bundle: true,
   format: "esm",

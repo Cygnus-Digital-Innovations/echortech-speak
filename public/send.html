@@ -5,40 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Say It</title>
   <link rel="stylesheet" href="/style.css">
+  <script type="application/json" id="people-data"><!--PEOPLE--></script>
+  <script type="module" src="/assets/picker.js"></script>
   <script type="module" src="/assets/send.js"></script>
 </head>
 <body>
   <header class="top">
     <a class="brand" href="/">Say It</a>
-    <nav class="menu" aria-label="Main" id="links"><a href="/" aria-current="page">Send</a><a href="/chat">Check replies</a><a href="/inbox">My inbox</a><a href="/setup">Get an inbox</a></nav>
+    <nav class="menu" aria-label="Main" id="links"><a href="/" aria-current="page">Send</a><a href="/inbox">Messages</a><a href="/setup">Get an inbox</a></nav>
   </header>
 
   <main class="card" id="view-compose">
     <h1>Say it. Your name stays out of it.</h1>
-    <p class="sub">No login. Only they can read it.</p>
+    <p class="sub">No login needed. Pick someone, write it, send it. Only they can read it.</p>
     <p class="note" id="no-people" hidden>Nobody's set up to receive messages yet. Check back soon.</p>
     <form id="compose">
       <div class="field">
-        <label for="recipient">Who's it for?</label>
-        <select id="recipient" required>
-          <option value="">Pick someone</option>
-        </select>
+        <label for="recipient-search">Who's it for?</label>
+        <p class="error" id="recipient-error" role="alert" hidden></p>
+        <div class="picker">
+          <input type="text" id="recipient-search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="recipient-list" autocomplete="off" spellcheck="false" placeholder="Search or pick a name">
+          <span class="picker-arrow" aria-hidden="true">▾</span>
+          <ul id="recipient-list" role="listbox" aria-label="People" hidden></ul>
+        </div>
+        <input type="hidden" id="recipient">
       </div>
       <div class="field">
         <div class="row"><label for="message">What's on your mind?</label><span class="counter" id="counter"></span></div>
         <textarea id="message" required placeholder="Say what you actually think…"></textarea>
         <p class="hint">Your writing style can still give you away, so keep identifying details out.</p>
       </div>
-      <label class="check"><input type="checkbox" id="allow-reply"><span>Let them reply. You'll get a secret code to come back to the chat.</span></label>
+      <p class="note" id="signed-in-note" hidden>You're signed in here, so this chat will also appear under Sent in your Messages. <a href="/inbox">Not you?</a></p>
+      <label class="check"><input type="checkbox" id="allow-reply"><span>Let them reply. Replies are saved in this browser, so anyone using it can see them.</span></label>
       <p class="note">Once it's sent, it's sent. It can't be edited or deleted.</p>
       <p class="error" id="error" role="alert" hidden></p>
-      <button class="btn" id="send" type="submit" disabled>Send it</button>
+      <button class="btn" id="send" type="submit" disabled>Getting ready…</button>
     </form>
   </main>
 
   <main class="card" id="view-code" hidden>
-    <h1>Sent. Now save your code</h1>
-    <p class="sub">It's your only way back to the chat. We can't recover it, and you won't see it again.</p>
+    <h1>Sent. Save this code</h1>
+    <p class="sub">Your browser couldn't remember this chat, so you'll need this code to see replies. Paste it in Messages, under "Have a chat code?".</p>
     <div class="stack">
       <div class="code" id="code"></div>
       <button class="btn quiet" id="copy" type="button">Copy code</button>
@@ -51,6 +58,17 @@
   <main class="card" id="view-sent" hidden>
     <h1>Sent. It's out there now ✨</h1>
     <p class="sub" id="sent-sub">Only they can open it.</p>
+    <p class="note" id="sent-note" hidden>This chat lives in this browser. Clear your browsing data or switch browser and it's gone for good.</p>
+    <div class="stack" id="backup" hidden>
+      <button class="btn quiet" id="show-backup" type="button">Show a backup code</button>
+      <div class="stack" id="backup-block" hidden>
+        <p class="hint">Anyone with this code can read and reply as you.</p>
+        <div class="code" id="backup-code"></div>
+        <button class="btn quiet" id="copy-backup" type="button">Copy code</button>
+        <p class="error" id="copy-backup-status" role="status" hidden></p>
+      </div>
+    </div>
+    <a class="btn quiet sent-link" id="see-replies" href="/inbox" hidden>See my messages</a>
     <button class="btn" id="again" type="button">Say something else</button>
   </main>
 

@@ -1,5 +1,5 @@
 import sodium from "libsodium-wrappers-sumo";
-import { decryptWireMessage, initCrypto } from "../crypto";
+import { decryptWireMessage, initCrypto, openKeyFile, type KeyFile, type ReaderKeyPair } from "../crypto";
 import { hasLeadingZeroBits, type PowSolution, type WireMessage } from "../types";
 
 export const b64 = (value: Uint8Array) => sodium.to_base64(value);
@@ -80,6 +80,21 @@ export function copyText(text: string, button: HTMLElement, doneLabel: string, s
   navigator.clipboard.writeText(text).then(() => {
     button.textContent = doneLabel;
   }, failed);
+}
+
+export async function readKeyFile(file: File | undefined, passphrase: string): Promise<ReaderKeyPair> {
+  if (!file) throw new Error("Choose your key file first");
+  let parsed: KeyFile;
+  try {
+    parsed = JSON.parse(await file.text()) as KeyFile;
+  } catch {
+    throw new Error("That doesn't look like a key file");
+  }
+  try {
+    return openKeyFile(parsed, passphrase);
+  } catch {
+    throw new Error("Wrong passphrase, or that key file is damaged");
+  }
 }
 
 export function showError(target: HTMLElement, error: unknown): void {

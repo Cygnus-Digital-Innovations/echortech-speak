@@ -23,7 +23,13 @@ Single-purpose pages use one centred card, 460px wide. The inbox uses one wide f
 | Bubble | `.bubble.mine` / `.bubble.theirs` | Chat messages | Anything else |
 
 ## Navigation
-Every page shares one top menu: Send, Check replies, My inbox, Get an inbox. The menu hides while a one-time secret code is on screen.
+Every page shares one top menu: Send, Messages, Get an inbox. Messages holds Received and Sent together. The menu hides while something shown only once is on screen.
+
+## Forms
+People are picked with a searchable list that works before the main script loads. Passphrases can be generated with one click.
+
+## Remembering people
+Don't ask for a code, key file or passphrase on every visit. This browser remembers chats and stays signed in. Codes only appear for moving to another device.
 
 ## States
 Errors appear in `.error` under the form, and typed text is kept. Long work changes the button label ("Locking it…"). Empty lists say what happens next.

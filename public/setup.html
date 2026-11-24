@@ -10,31 +10,33 @@
 <body>
   <header class="top">
     <a class="brand" href="/">Say It</a>
-    <nav class="menu" aria-label="Main"><a href="/">Send</a><a href="/chat">Check replies</a><a href="/inbox">My inbox</a><a href="/setup" aria-current="page">Get an inbox</a></nav>
+    <nav class="menu" aria-label="Main" id="links"><a href="/">Send</a><a href="/inbox">Messages</a><a href="/setup" aria-current="page">Get an inbox</a></nav>
   </header>
 
   <main class="card" id="view-form">
     <h1>Get your inbox</h1>
-    <p class="sub">Your keys are made right here on your device. We never see your private key.</p>
+    <p class="sub">Only needed if you want to receive messages. <a href="/">To just send one, skip this.</a></p>
     <form id="setup-form">
       <div class="field">
         <label for="name">Your name</label>
         <input type="text" id="name" required maxlength="60" autocomplete="name">
-        <p class="hint">This is how people find you when sending.</p>
+        <p class="hint">Coworkers pick this name to message you. Messages you send stay anonymous.</p>
       </div>
       <div class="field">
-        <label for="invite">Company invite code</label>
+        <label for="invite">Company code</label>
         <input type="text" id="invite" required autocomplete="off" spellcheck="false">
-        <p class="hint">Ask your team if you don't have it.</p>
+        <p class="hint">Everyone at EchorTech uses the same code. Ask your team if you don't have it.</p>
       </div>
       <div class="field">
-        <label for="passphrase">Passphrase</label>
+        <div class="row"><label for="passphrase">Passphrase</label><button class="link-button" id="generate" type="button">Generate one for me</button></div>
         <input type="password" id="passphrase" required autocomplete="new-password">
-        <p class="hint">At least 12 characters. A few random words works great.</p>
+        <p class="hint" id="passphrase-hint">At least 12 characters, or generate one.</p>
+        <button class="btn quiet small" id="copy-passphrase" type="button" hidden>Copy passphrase</button>
+        <p class="error" id="copy-passphrase-status" role="status" hidden></p>
       </div>
-      <div class="field">
+      <div class="field" id="confirm-field">
         <label for="confirm">Type it again</label>
-        <input type="password" id="confirm" required autocomplete="new-password">
+        <input type="password" id="confirm" autocomplete="new-password">
       </div>
       <p class="note">Forget your passphrase or lose your key file, and your messages are gone forever. Nobody can reset it.</p>
       <p class="error" id="error" role="alert" hidden></p>
@@ -43,21 +45,28 @@
   </main>
 
   <main class="card" id="view-save" hidden>
-    <h1>Save your key file</h1>
-    <p class="sub">Keep it somewhere safe, like your password manager. We can't recover it.</p>
+    <h1 id="save-title">Save your key file</h1>
+    <p class="sub" id="save-sub">Keep it somewhere safe, like your password manager. We can't recover it.</p>
     <div class="stack">
+      <div class="stack" id="saved-passphrase-block" hidden>
+        <p class="label">Your passphrase</p>
+        <div class="code" id="saved-passphrase"></div>
+        <button class="btn quiet" id="save-copy-passphrase" type="button">Copy passphrase</button>
+        <p class="error" id="save-copy-status" role="status" hidden></p>
+      </div>
       <button class="btn" id="download" type="button">Download key file</button>
       <p class="hint" id="download-hint" hidden>Check your downloads folder, then move it somewhere safe.</p>
-      <label class="check"><input type="checkbox" id="saved" disabled><span>I've saved my key file and I remember my passphrase</span></label>
+      <label class="check"><input type="checkbox" id="saved" disabled><span id="saved-label">I've saved my key file and I remember my passphrase</span></label>
+      <label class="check"><input type="checkbox" id="stay" checked><span>Keep me signed in on this device. Turn this off on a shared computer.</span></label>
       <p class="error" id="register-error" role="alert" hidden></p>
-      <button class="btn" id="finish" type="button" hidden>Done</button>
+      <button class="btn" id="finish" type="button" hidden>Finish setup</button>
     </div>
   </main>
 
   <main class="card" id="view-done" hidden>
     <h1>You're all set ✨</h1>
-    <p class="sub">People can message you now, and your inbox is ready.</p>
-    <a class="btn quiet" href="/inbox">Go to my inbox</a>
+    <p class="sub" id="done-sub">People can message you now.</p>
+    <a class="btn" href="/inbox">Go to my messages</a>
     <nav class="links done-links"><a href="/">Send a message</a></nav>
   </main>
 </body>

@@ -3,48 +3,77 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Say It: inbox</title>
+  <title>Say It: messages</title>
   <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/assets/early.js"></script>
   <script type="module" src="/assets/inbox.js"></script>
 </head>
 <body>
   <header class="top">
     <a class="brand" href="/">Say It</a>
-    <nav class="menu" aria-label="Main"><a href="/">Send</a><a href="/chat">Check replies</a><a href="/inbox" aria-current="page">My inbox</a><a href="/setup">Get an inbox</a></nav>
+    <nav class="menu" aria-label="Main"><a href="/">Send</a><a href="/inbox" aria-current="page">Messages</a><a href="/setup">Get an inbox</a></nav>
   </header>
 
+  <main class="card" id="view-opening" hidden>
+    <h1 id="opening-title">Opening your messages…</h1>
+    <button class="btn" id="opening-retry" type="button" hidden>Try again</button>
+  </main>
+
   <main class="card" id="view-unlock">
-    <h1>Open your inbox</h1>
-    <p class="sub">Your key file and passphrase stay on this device.</p>
+    <h1>Your messages</h1>
+    <p class="sub">To see messages sent to you, unlock your inbox once on this device. You only need to do this once.</p>
     <form id="unlock-form">
       <div class="field">
-        <label for="key-file">Key file</label>
+        <label for="key-file">1. Your key file</label>
         <input type="file" id="key-file" accept=".json" required>
       </div>
       <div class="field">
-        <label for="passphrase">Passphrase</label>
+        <label for="passphrase">2. Your passphrase</label>
         <input type="password" id="passphrase" required autocomplete="current-password">
       </div>
+      <label class="check"><input type="checkbox" id="stay" checked><span>Keep me signed in on this device. Turn this off on a shared computer.</span></label>
       <p class="error" id="unlock-error" role="alert" hidden></p>
       <button class="btn" id="unlock" type="submit" disabled>Unlock</button>
+      <p class="hint">No inbox yet? <a href="/setup">Get one</a>. You don't need one to send a message.</p>
     </form>
+    <details class="paste" id="paste">
+      <summary>Have a chat code? Open your chat</summary>
+      <form id="code-form">
+        <div class="field">
+          <label for="code-input">Your chat code</label>
+          <input type="text" id="code-input" required autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX-XXXX-…">
+        </div>
+        <p class="error" id="code-error" role="alert" hidden></p>
+        <button class="btn quiet" id="open-code" type="submit" disabled>Open chat</button>
+      </form>
+    </details>
+    <button class="link-button forget" id="unlock-back" type="button" hidden>Back to my chats</button>
   </main>
 
   <main class="card big" id="view-inbox" hidden>
     <div class="shell" id="shell">
       <aside class="side">
         <div class="side-head">
-          <h1 id="inbox-title">Inbox</h1>
+          <h1 id="inbox-title">Received</h1>
           <div class="tools">
             <button class="btn quiet small" id="refresh" type="button">Refresh</button>
-            <button class="btn quiet small" id="toggle-hidden" type="button">Hidden</button>
-            <button class="btn quiet small" id="lock" type="button">Lock</button>
+            <button class="btn quiet small" id="lock" type="button" hidden>Sign out</button>
           </div>
+        </div>
+        <div class="tabs" role="group" aria-label="Show">
+          <button class="tab" id="tab-inbox" type="button" aria-pressed="true">Received</button>
+          <button class="tab" id="tab-sent" type="button" aria-pressed="false">Sent</button>
+          <button class="tab" id="tab-hidden" type="button" aria-pressed="false" hidden>Hidden</button>
         </div>
         <p class="error side-message" id="list-error" role="alert" hidden></p>
         <p class="hint side-message" id="list-status" role="status" hidden></p>
         <p class="empty" id="empty" hidden></p>
         <div class="list" id="thread-list"></div>
+        <div class="sent-tools" id="sent-tools" hidden>
+          <p class="hint">Saved in this browser. On a shared computer, remove these when you're done.</p>
+          <button class="link-button" id="have-code" type="button">Have a chat code?</button>
+          <button class="link-button" id="forget" type="button" hidden>Remove chats from this browser</button>
+        </div>
       </aside>
       <section class="main">
         <p class="placeholder" id="placeholder">Pick a message to read it.</p>
@@ -57,6 +86,15 @@
           </div>
           <div class="messages" id="messages" aria-live="polite"></div>
           <p class="error pane-error" id="pane-error" role="alert" hidden></p>
+          <div class="device-code" id="device-code" hidden>
+            <button class="link-button" id="show-code" type="button" aria-expanded="false">Open on another device</button>
+            <div class="stack" id="code-block" hidden>
+              <p class="hint">Paste this under "Have a chat code?" on the other device. Anyone with this code can read and reply as you.</p>
+              <div class="code" id="chat-code"></div>
+              <button class="btn quiet small" id="copy-chat-code" type="button">Copy code</button>
+              <p class="error" id="copy-chat-status" role="status" hidden></p>
+            </div>
+          </div>
           <p class="composer-note" id="no-reply-note" hidden></p>
           <form class="composer" id="reply-form">
             <textarea id="reply" required aria-label="Your reply" placeholder="Reply…"></textarea>
@@ -67,6 +105,25 @@
     </div>
   </main>
 
+  <dialog id="signout-dialog">
+    <h2>Sign out of this device?</h2>
+    <p>You'll need your key file and passphrase to get back in, so make sure you still have them.</p>
+    <p id="signout-extra" hidden>Chats you sent without signing in stay in this browser. Remove them under Sent if others use this computer.</p>
+    <div class="dialog-actions">
+      <button class="btn quiet" id="signout-cancel" type="button" autofocus>Cancel</button>
+      <button class="btn danger" id="signout-confirm" type="button">Sign out</button>
+    </div>
+  </dialog>
+
+  <dialog id="forget-dialog">
+    <h2>Remove chats from this browser?</h2>
+    <p>You won't be able to open these chats again unless you saved a backup code. Chats you sent while signed in stay under Sent.</p>
+    <div class="dialog-actions">
+      <button class="btn quiet" id="forget-cancel" type="button" autofocus>Cancel</button>
+      <button class="btn danger" id="forget-confirm" type="button">Remove chats</button>
+    </div>
+  </dialog>
+
   <dialog id="stop-dialog">
     <h2>Stop this chat for good?</h2>
     <p>Neither of you can send anything else, and this can't be undone. You can still read it.</p>
@@ -75,6 +132,5 @@
       <button class="btn danger" id="stop-confirm" type="button">Stop chat</button>
     </div>
   </dialog>
-
 </body>
 </html>

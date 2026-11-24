@@ -12,6 +12,7 @@ const LOGIN_TTL_MS = 2 * 60 * 1000;
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const INBOX_PAGE_SIZE = 100;
 const MAX_NAME_CHARS = 60;
+const MAX_LOOKUP_TOKENS = 20;
 const MAX_PEOPLE = 1000;
 const REGISTRATION_WINDOW_MS = 10 * 60 * 1000;
 const MAX_REGISTRATIONS_PER_WINDOW = 20;
@@ -36,7 +37,7 @@ const CONTENT_TYPES: Record<string, string> = {
 
 const PAGE_ROUTES: Record<string, string> = {
   "/": "send.html",
-  "/chat": "chat.html",
+  "/chat": "inbox.html",
   "/inbox": "inbox.html",
   "/setup": "setup.html",
 };
@@ -107,7 +108,8 @@ function readBody(req: IncomingMessage): Promise<Body> {
 
 export function createApp(options: AppOptions): Server {
   const { db, publicDir, powBits, secureCookies } = options;
-  const inviteHash = sha256(Buffer.from(options.inviteCode.trim()));
+  const inviteKey = (code: string) => sha256(Buffer.from(code.trim().toLowerCase()));
+  const inviteHash = inviteKey(options.inviteCode);
   let registrationWindow = { start: 0, count: 0 };
   const maxThreadsPerWindow = options.maxThreadsPerWindow ?? DEFAULT_MAX_THREADS_PER_WINDOW;
   const maxDatabaseBytes = options.maxDatabaseBytes ?? DEFAULT_MAX_DATABASE_BYTES;
@@ -167,6 +169,14 @@ export function createApp(options: AppOptions): Server {
       (m) => ({ seq: m.seq, ciphertext: b64(m.ciphertext), author: m.author }),
     );
 
+  const activePeople = () =>
+    (db.prepare("SELECT key_id, reader_name, public_key FROM reader_keys WHERE status = 'active' ORDER BY lower(reader_name)").all() as unknown as { key_id: number; reader_name: string; public_key: Uint8Array }[]).map((p) => ({
+      keyId: p.key_id,
+      name: p.reader_name,
+      publicKey: b64(p.public_key),
+      status: "active",
+    }));
+
   function checkStorage(): void {
     const { bytes: used } = db.prepare("SELECT (SELECT page_count FROM pragma_page_count()) * (SELECT page_size FROM pragma_page_size()) AS bytes").get() as { bytes: number };
     if (used >= maxDatabaseBytes) throw new HttpError(507, "We can't take new messages right now");
@@ -225,16 +235,30 @@ export function createApp(options: AppOptions): Server {
       return { payload, signature: sign(payload).toString("base64url"), bits: powBits };
     }
 
-    if (method === "GET" && path === "/api/directory") {
-      const rows = db.prepare("SELECT key_id, reader_name, public_key FROM reader_keys WHERE status = 'active' ORDER BY lower(reader_name)").all() as unknown as { key_id: number; reader_name: string; public_key: Uint8Array }[];
-      return { people: rows.map((p) => ({ keyId: p.key_id, name: p.reader_name, publicKey: b64(p.public_key), status: "active" })) };
+    if (method === "GET" && path === "/api/directory") return { people: activePeople() };
+
+    if (method === "POST" && path === "/api/sender/lookup") {
+      const body = await readBody(req);
+      if (!Array.isArray(body.accessTokens) || body.accessTokens.length < 1 || body.accessTokens.length > MAX_LOOKUP_TOKENS) throw new HttpError(400, "Invalid request");
+      const find = db.prepare(
+        "SELECT t.id, t.status, k.reader_name AS recipient, m.seq, m.ciphertext, m.author FROM threads t " +
+          "JOIN reader_keys k ON k.key_id = t.recipient_key_id " +
+          "JOIN messages m ON m.thread_id = t.id AND m.seq = (SELECT max(seq) FROM messages WHERE thread_id = t.id) " +
+          "WHERE t.access_token_hash = ?",
+      );
+      return {
+        threads: body.accessTokens.map((token: unknown) => {
+          const row = find.get(sha256(bytes(token, 32, "code"))) as { id: Uint8Array; status: string; recipient: string; seq: number; ciphertext: Uint8Array; author: string } | undefined;
+          return row ? { id: b64(row.id), status: row.status, recipient: row.recipient, last: { seq: row.seq, ciphertext: b64(row.ciphertext), author: row.author } } : null;
+        }),
+      };
     }
 
     if (method === "POST" && (path === "/api/register" || path === "/api/register/check")) {
       const body = await readBody(req);
       checkPow(body.pow);
-      if (typeof body.inviteCode !== "string" || !timingSafeEqual(sha256(Buffer.from(body.inviteCode.trim())), inviteHash)) {
-        throw new HttpError(403, "That invite code isn't right");
+      if (typeof body.inviteCode !== "string" || !timingSafeEqual(inviteKey(body.inviteCode), inviteHash)) {
+        throw new HttpError(403, "That company code isn't right");
       }
       const name = typeof body.name === "string" ? body.name.trim().replace(/\s+/g, " ") : "";
       const nameChars = Array.from(name).length;
@@ -405,7 +429,10 @@ export function createApp(options: AppOptions): Server {
         res.writeHead(404, { "Content-Type": "text/plain" }).end("Not found");
         return;
       }
-      res.writeHead(200, { "Content-Type": file.type, "Cache-Control": "no-cache" }).end(file.body);
+      res.writeHead(200, { "Content-Type": file.type, "Cache-Control": "no-cache" }).end(
+        // People are built into the page so the name picker works the moment it loads.
+        path === "/" ? file.body.toString("utf8").replace("<!--PEOPLE-->", () => JSON.stringify(activePeople()).replace(/</g, "\\u003c")) : file.body,
+      );
       return;
     }
 
