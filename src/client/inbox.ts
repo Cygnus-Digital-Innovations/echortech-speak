@@ -459,6 +459,7 @@ for (const name of ["inbox", "sent", "hidden"] as const) {
       showUnlock();
       return;
     }
+    if (view !== name) closePane();
     view = name;
     renderList();
   });
