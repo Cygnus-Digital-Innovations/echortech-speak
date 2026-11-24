@@ -1,4 +1,4 @@
-import { createPlainKeyFile, generateReaderKeys, isValidPin, type ReaderKeyPair } from "../crypto";
+import { createPinKeyFile, generateReaderKeys, isValidPin, type ReaderKeyPair } from "../crypto";
 import { rememberKeys } from "./device";
 import { api, boot, el, focusHeading, showError, solvePow, warnBeforeLeaving, withBusy } from "./ui";
 
@@ -11,6 +11,8 @@ const error = el("error");
 const saved = el<HTMLInputElement>("saved");
 const stay = el<HTMLInputElement>("stay");
 const pinInput = el<HTMLInputElement>("pin");
+const pinAgain = el<HTMLInputElement>("pin-again");
+let pin = "";
 const finish = el<HTMLButtonElement>("finish");
 const registerError = el("register-error");
 let keyFileUrl = "";
@@ -21,11 +23,22 @@ let newKeys: ReaderKeyPair | null = null;
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   error.hidden = true;
+  if (!isValidPin(pinInput.value.trim())) {
+    showError(error, new Error("Your PIN needs to be 4 digits"));
+    return;
+  }
+  if (pinInput.value.trim() !== pinAgain.value.trim()) {
+    showError(error, new Error("Those PINs don't match"));
+    return;
+  }
   void withBusy(createButton, "Making your keys…", async () => {
     try {
       await api("/api/register/check", { name: nameInput.value, pow: await solvePow() });
       const keys = generateReaderKeys();
-      const file = createPlainKeyFile(keys);
+      pin = pinInput.value.trim();
+      const file = createPinKeyFile(keys, pin);
+      pinInput.value = "";
+      pinAgain.value = "";
       newKeys = keys;
       publicKey = file.publicKey;
       keyFileUrl = URL.createObjectURL(new Blob([JSON.stringify(file)], { type: "application/json" }));
@@ -55,26 +68,18 @@ download.addEventListener("click", () => {
 saved.addEventListener("change", () => {
   finish.hidden = !saved.checked;
 });
-stay.addEventListener("change", () => {
-  el("pin-field").hidden = !stay.checked;
-});
 finish.addEventListener("click", () => {
   registerError.hidden = true;
-  const pin = stay.checked ? pinInput.value.trim() : "";
-  if (pin && !isValidPin(pin)) {
-    showError(registerError, new Error("Your PIN needs to be 4 digits, or leave it empty"));
-    return;
-  }
   void withBusy(finish, "Adding you…", async () => {
     try {
       await api("/api/register", { name: nameInput.value, publicKey, pow: await solvePow() });
       const signedIn = newKeys !== null && stay.checked && rememberKeys(newKeys, pin);
+      pin = "";
       el("done-sub").textContent = signedIn
-        ? "You're signed in here. You'll only need your key file on a new device, after signing out, or if this browser's data is cleared."
-        : "People can message you now. Open your key file in Messages to read them.";
+        ? "You're signed in here. Next time, just enter your PIN. On a new device, use your key file and PIN."
+        : "People can message you now. Open Messages with your key file and PIN to read them.";
       removeEventListener("beforeunload", warnBeforeLeaving);
       URL.revokeObjectURL(keyFileUrl);
-      pinInput.value = "";
       el("view-save").hidden = true;
       el("view-done").hidden = false;
       el("links").hidden = false;

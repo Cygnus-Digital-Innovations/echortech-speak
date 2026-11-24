@@ -3,6 +3,7 @@ import {
   answerLoginChallenge,
   CIPHERTEXT_BYTES,
   createKeyFile,
+  createPinKeyFile,
   createPlainKeyFile,
   lockWithPin,
   unlockWithPin,
@@ -314,5 +315,19 @@ describe("plain key files and PINs", () => {
     expect(unlockWithPin(lock, "1234").privateKey).toEqual(keys.privateKey);
     expect(() => unlockWithPin(lock, "4321")).toThrow(CryptoError);
     expect(() => lockWithPin(keys, "12345")).toThrow(CryptoError);
+  });
+});
+
+describe("PIN key files", () => {
+  beforeAll(async () => {
+    await initCrypto();
+  });
+
+  it("opens only with the PIN chosen at setup", () => {
+    const keys = generateReaderKeys();
+    const file = JSON.parse(JSON.stringify(createPinKeyFile(keys, "4821")));
+    expect(openKeyFile(file, "4821").privateKey).toEqual(keys.privateKey);
+    expect(() => openKeyFile(file, "1111")).toThrow(CryptoError);
+    expect(() => createPinKeyFile(keys, "12")).toThrow(CryptoError);
   });
 });

@@ -98,7 +98,7 @@ export async function readKeyFile(file: File | undefined, passphrase: string): P
   try {
     return openKeyFile(parsed, passphrase);
   } catch {
-    throw new Error(parsed.version === 1 ? "Wrong passphrase, or that key file is damaged" : "That key file is damaged");
+    throw new Error(parsed.version === 1 ? "Wrong PIN, or that key file is damaged" : "That key file is damaged");
   }
 }
 

@@ -385,12 +385,12 @@ unlockForm.addEventListener("submit", (event) => {
   void withBusy(unlockButton, "Unlocking…", async () => {
     const previous = keys;
     try {
-      const pin = newPin.value.trim();
-      if (pin && !isValidPin(pin)) throw new Error("Your PIN needs to be 4 digits");
-      keys = await readKeyFile(keyFileInput.files?.[0], passphrase.value);
+      const file = await parseKeyFile(keyFileInput.files?.[0]);
+      const pin = passphrase.value.trim();
+      keys = await readKeyFile(keyFileInput.files?.[0], pin);
+      // Same PIN locks the key saved in this browser, so the next visit only asks for it.
       await signIn();
-      if (el<HTMLInputElement>("stay").checked) rememberKeys(keys, pin);
-      newPin.value = "";
+      if (el<HTMLInputElement>("stay").checked) rememberKeys(keys, file.version === 1 && isValidPin(pin) ? pin : "");
     } catch (failure) {
       keys = previous;
       showError(unlockError, failure);
@@ -630,11 +630,7 @@ replyForm.addEventListener("submit", (event) => {
   });
 });
 
-const newPin = el<HTMLInputElement>("new-pin");
-el<HTMLInputElement>("stay").addEventListener("change", (event) => {
-  el("pin-field").hidden = !(event.target as HTMLInputElement).checked;
-});
-// Only older key files are locked with a passphrase, so only ask for one then.
+// Key files are locked with the PIN; very early test files weren't, so skip it for those.
 keyFileInput.addEventListener("change", () => {
   void parseKeyFile(keyFileInput.files?.[0]).then(
     (file) => {
@@ -642,8 +638,8 @@ keyFileInput.addEventListener("change", () => {
       passphrase.required = file.version === 1;
     },
     () => {
-      el("passphrase-field").hidden = true;
-      passphrase.required = false;
+      el("passphrase-field").hidden = false;
+      passphrase.required = true;
     },
   );
 });

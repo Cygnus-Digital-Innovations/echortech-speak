@@ -133,10 +133,20 @@ export function unlockWithPin(lock: PinLock, pin: string): ReaderKeyPair {
   }
 }
 
+// The key file is locked with the 4-digit PIN chosen at setup.
+export function createPinKeyFile(keys: ReaderKeyPair, pin: string): PassphraseKeyFile {
+  if (!isValidPin(pin)) throw new CryptoError("PIN must be 4 digits");
+  return wrapKeyFile(keys, pin);
+}
+
 export function createKeyFile(keys: ReaderKeyPair, passphrase: string): PassphraseKeyFile {
   if (Array.from(passphrase).length < MIN_PASSPHRASE_CHARS) {
     throw new CryptoError(`Passphrase must be at least ${MIN_PASSPHRASE_CHARS} characters`);
   }
+  return wrapKeyFile(keys, passphrase);
+}
+
+function wrapKeyFile(keys: ReaderKeyPair, passphrase: string): PassphraseKeyFile {
   const salt = sodium.randombytes_buf(sodium.crypto_pwhash_SALTBYTES);
   const nonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
   const opsLimit = sodium.crypto_pwhash_OPSLIMIT_MODERATE;
