@@ -17,7 +17,7 @@ Requires Node 24 or newer.
 
 People register themselves at `/setup` with the company invite code. Their browser creates their keys, and only the name and public key reach the server.
 
-The company code is the `INVITE_CODE` environment variable, and capitals don't matter. On the server it's in `~/.sayit.env`. To change it, edit that file and redeploy.
+Anyone with the link can add themselves. To require a company code again, set `INVITE_CODE` in `~/.sayit.env` on the server and redeploy (capitals don't matter).
 
 To remove someone, or free up a name after a lost key, run:
 

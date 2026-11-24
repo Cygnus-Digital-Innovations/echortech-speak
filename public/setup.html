@@ -22,42 +22,25 @@
         <input type="text" id="name" required maxlength="60" autocomplete="name">
         <p class="hint">Coworkers pick this name to message you. Messages you send stay anonymous.</p>
       </div>
-      <div class="field">
-        <label for="invite">Company code</label>
-        <input type="text" id="invite" required autocomplete="off" spellcheck="false">
-        <p class="hint">Everyone at EchorTech uses the same code. Ask your team if you don't have it.</p>
-      </div>
-      <div class="field">
-        <div class="row"><label for="passphrase">Passphrase</label><button class="link-button" id="generate" type="button">Generate one for me</button></div>
-        <input type="password" id="passphrase" required autocomplete="new-password">
-        <p class="hint" id="passphrase-hint">At least 12 characters, or generate one.</p>
-        <button class="btn quiet small" id="copy-passphrase" type="button" hidden>Copy passphrase</button>
-        <p class="error" id="copy-passphrase-status" role="status" hidden></p>
-      </div>
-      <div class="field" id="confirm-field">
-        <label for="confirm">Type it again</label>
-        <input type="password" id="confirm" autocomplete="new-password">
-      </div>
-      <p class="note">Forget your passphrase or lose your key file, and your messages are gone forever. Nobody can reset it.</p>
+      <p class="note">Lose your key file and your messages are gone forever. Nobody can reset it.</p>
       <p class="error" id="error" role="alert" hidden></p>
       <button class="btn" id="create" type="submit" disabled>Make my keys</button>
     </form>
   </main>
 
   <main class="card" id="view-save" hidden>
-    <h1 id="save-title">Save your key file</h1>
-    <p class="sub" id="save-sub">Keep it somewhere safe, like your password manager. We can't recover it.</p>
+    <h1>Save your key file</h1>
+    <p class="sub">It's the only way into your inbox. Keep it somewhere safe and private. We can't recover it.</p>
     <div class="stack">
-      <div class="stack" id="saved-passphrase-block" hidden>
-        <p class="label">Your passphrase</p>
-        <div class="code" id="saved-passphrase"></div>
-        <button class="btn quiet" id="save-copy-passphrase" type="button">Copy passphrase</button>
-        <p class="error" id="save-copy-status" role="status" hidden></p>
-      </div>
       <button class="btn" id="download" type="button">Download key file</button>
       <p class="hint" id="download-hint" hidden>Check your downloads folder, then move it somewhere safe.</p>
-      <label class="check"><input type="checkbox" id="saved" disabled><span id="saved-label">I've saved my key file and I remember my passphrase</span></label>
+      <label class="check"><input type="checkbox" id="saved" disabled><span>I've saved my key file</span></label>
       <label class="check"><input type="checkbox" id="stay" checked><span>Keep me signed in on this device. Turn this off on a shared computer.</span></label>
+      <div class="field" id="pin-field">
+        <label for="pin">4-digit PIN (optional)</label>
+        <input type="password" id="pin" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" autocomplete="off">
+        <p class="hint">Asked each time you open Messages here. Forget it and you just use your key file again.</p>
+      </div>
       <p class="error" id="register-error" role="alert" hidden></p>
       <button class="btn" id="finish" type="button" hidden>Finish setup</button>
     </div>

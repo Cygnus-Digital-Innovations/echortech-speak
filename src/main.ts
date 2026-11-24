@@ -6,7 +6,6 @@ import { createApp } from "./server.ts";
 const databasePath = process.env.DATABASE_PATH ?? "speak.db";
 const port = Number(process.env.PORT ?? 3000);
 const inviteCode = process.env.INVITE_CODE ?? "";
-if (!inviteCode.trim()) throw new Error("INVITE_CODE must be set");
 
 await initCrypto();
 

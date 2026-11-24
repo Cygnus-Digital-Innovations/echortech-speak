@@ -3,6 +3,9 @@ import {
   answerLoginChallenge,
   CIPHERTEXT_BYTES,
   createKeyFile,
+  createPlainKeyFile,
+  lockWithPin,
+  unlockWithPin,
   createLoginChallenge,
   CryptoError,
   decryptMessage,
@@ -285,5 +288,31 @@ describe("full conversation", () => {
     const received = decryptMessage(returning.threadKey, { threadId, seq: 2 }, reply);
     expect(received.text).toBe("Yes, go on.");
     expect(received.author).toBe("recipient");
+  });
+});
+
+describe("plain key files and PINs", () => {
+  beforeAll(async () => {
+    await initCrypto();
+  });
+
+  it("opens a plain key file without a passphrase", () => {
+    const keys = generateReaderKeys();
+    const opened = openKeyFile(JSON.parse(JSON.stringify(createPlainKeyFile(keys))));
+    expect(opened.privateKey).toEqual(keys.privateKey);
+  });
+
+  it("rejects a plain key file whose keys don't match", () => {
+    const file = createPlainKeyFile(generateReaderKeys());
+    const other = createPlainKeyFile(generateReaderKeys());
+    expect(() => openKeyFile({ ...file, publicKey: other.publicKey })).toThrow(CryptoError);
+  });
+
+  it("locks and unlocks with a 4-digit PIN", () => {
+    const keys = generateReaderKeys();
+    const lock = lockWithPin(keys, "1234");
+    expect(unlockWithPin(lock, "1234").privateKey).toEqual(keys.privateKey);
+    expect(() => unlockWithPin(lock, "4321")).toThrow(CryptoError);
+    expect(() => lockWithPin(keys, "12345")).toThrow(CryptoError);
   });
 });

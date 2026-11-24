@@ -3,13 +3,15 @@ import {
   decryptWireMessage,
   encryptMessage,
   MAX_MESSAGE_CHARS,
+  isValidPin,
   openThreadKey,
+  unlockWithPin,
   type ReaderKeyPair,
 } from "../crypto";
 import type { WireMessage } from "../types";
-import { forgetCodes, forgetKeys, markRead, readUpTo, removeCodes, rememberedKeys, rememberKeys, saveCode, savedCodes } from "./device";
+import { forgetCodes, forgetKeys, markRead, pinLock, readUpTo, removeCodes, rememberedKeys, rememberKeys, saveCode, savedCodes } from "./device";
 import { findSentChats, lookupCodes, type SentChat } from "./sent";
-import { api, ApiError, b64, boot, copyText, el, focusElement, focusHeading, fromB64, nextFrame, readKeyFile, renderMessages, showError, solvePow, wireCounter, withBusy } from "./ui";
+import { api, ApiError, b64, boot, copyText, el, focusElement, focusHeading, fromB64, nextFrame, parseKeyFile, readKeyFile, renderMessages, showError, solvePow, wireCounter, withBusy } from "./ui";
 
 interface ThreadSummary {
   id: string;
@@ -94,6 +96,7 @@ const visibleError = () => (el("shell").classList.contains("reading") ? paneErro
 function showShell(): void {
   el("view-opening").hidden = true;
   el("view-unlock").hidden = true;
+  el("view-pin").hidden = true;
   el("view-inbox").hidden = false;
   document.body.classList.add("wide");
   renderList();
@@ -101,6 +104,7 @@ function showShell(): void {
 
 function showUnlock(): void {
   el("view-opening").hidden = true;
+  el("view-pin").hidden = true;
   el("view-inbox").hidden = true;
   el("view-unlock").hidden = false;
   document.body.classList.remove("wide");
@@ -381,9 +385,12 @@ unlockForm.addEventListener("submit", (event) => {
   void withBusy(unlockButton, "Unlocking…", async () => {
     const previous = keys;
     try {
+      const pin = newPin.value.trim();
+      if (pin && !isValidPin(pin)) throw new Error("Your PIN needs to be 4 digits");
       keys = await readKeyFile(keyFileInput.files?.[0], passphrase.value);
       await signIn();
-      if (el<HTMLInputElement>("stay").checked) rememberKeys(keys);
+      if (el<HTMLInputElement>("stay").checked) rememberKeys(keys, pin);
+      newPin.value = "";
     } catch (failure) {
       keys = previous;
       showError(unlockError, failure);
@@ -623,7 +630,65 @@ replyForm.addEventListener("submit", (event) => {
   });
 });
 
+const newPin = el<HTMLInputElement>("new-pin");
+el<HTMLInputElement>("stay").addEventListener("change", (event) => {
+  el("pin-field").hidden = !(event.target as HTMLInputElement).checked;
+});
+// Only older key files are locked with a passphrase, so only ask for one then.
+keyFileInput.addEventListener("change", () => {
+  void parseKeyFile(keyFileInput.files?.[0]).then(
+    (file) => {
+      el("passphrase-field").hidden = file.version !== 1;
+      passphrase.required = file.version === 1;
+    },
+    () => {
+      el("passphrase-field").hidden = true;
+      passphrase.required = false;
+    },
+  );
+});
+
+function showPin(): void {
+  el("view-opening").hidden = true;
+  el("view-unlock").hidden = true;
+  el("view-inbox").hidden = true;
+  el("view-pin").hidden = false;
+  document.body.classList.remove("wide");
+  el("pin").focus();
+}
+
+el("pin-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  el("pin-error").hidden = true;
+  const lock = pinLock();
+  const pinInput = el<HTMLInputElement>("pin");
+  void withBusy(el<HTMLButtonElement>("pin-open"), "Opening…", async () => {
+    try {
+      if (!lock) throw new Error("No PIN is set here. Use your key file.");
+      try {
+        keys = unlockWithPin(lock, pinInput.value.trim());
+      } catch {
+        throw new Error("That PIN isn't right");
+      }
+      pinInput.value = "";
+      await signIn();
+    } catch (failure) {
+      keys = null;
+      showError(el("pin-error"), failure);
+    }
+  });
+});
+
+el("forgot-pin").addEventListener("click", () => {
+  forgetKeys();
+  void startSignedOut();
+});
+
 async function start(): Promise<void> {
+  if (pinLock()) {
+    showPin();
+    return;
+  }
   const saved = rememberedKeys();
   el("opening-retry").hidden = true;
   el("opening-title").textContent = "Opening your messages…";

@@ -52,7 +52,8 @@ class HttpError extends Error {
 
 export interface AppOptions {
   db: DatabaseSync;
-  inviteCode: string;
+  /** Leave empty to let anyone with the link add themselves. */
+  inviteCode?: string;
   publicDir: string;
   powBits: number;
   secureCookies: boolean;
@@ -109,7 +110,7 @@ function readBody(req: IncomingMessage): Promise<Body> {
 export function createApp(options: AppOptions): Server {
   const { db, publicDir, powBits, secureCookies } = options;
   const inviteKey = (code: string) => sha256(Buffer.from(code.trim().toLowerCase()));
-  const inviteHash = inviteKey(options.inviteCode);
+  const inviteHash = options.inviteCode?.trim() ? inviteKey(options.inviteCode) : null;
   let registrationWindow = { start: 0, count: 0 };
   const maxThreadsPerWindow = options.maxThreadsPerWindow ?? DEFAULT_MAX_THREADS_PER_WINDOW;
   const maxDatabaseBytes = options.maxDatabaseBytes ?? DEFAULT_MAX_DATABASE_BYTES;
@@ -257,7 +258,7 @@ export function createApp(options: AppOptions): Server {
     if (method === "POST" && (path === "/api/register" || path === "/api/register/check")) {
       const body = await readBody(req);
       checkPow(body.pow);
-      if (typeof body.inviteCode !== "string" || !timingSafeEqual(inviteKey(body.inviteCode), inviteHash)) {
+      if (inviteHash && (typeof body.inviteCode !== "string" || !timingSafeEqual(inviteKey(body.inviteCode), inviteHash))) {
         throw new HttpError(403, "That company code isn't right");
       }
       const name = typeof body.name === "string" ? body.name.trim().replace(/\s+/g, " ") : "";

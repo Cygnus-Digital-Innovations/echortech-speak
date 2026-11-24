@@ -1,5 +1,5 @@
 // What this browser remembers, so people aren't asked for codes and keys on every visit.
-import type { ReaderKeyPair } from "../crypto";
+import { lockWithPin, type PinLock, type ReaderKeyPair } from "../crypto";
 import { b64, fromB64 } from "./ui";
 
 const CODES = "sayit.codes";
@@ -58,9 +58,11 @@ export function forgetCodes(): void {
   }
 }
 
-export function rememberKeys(keys: ReaderKeyPair): boolean {
+// With a PIN, the saved key is locked and Messages asks for the PIN before opening.
+export function rememberKeys(keys: ReaderKeyPair, pin = ""): boolean {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ publicKey: b64(keys.publicKey), privateKey: b64(keys.privateKey) }));
+    const stored = pin ? { pin: lockWithPin(keys, pin) } : { publicKey: b64(keys.publicKey), privateKey: b64(keys.privateKey) };
+    localStorage.setItem(KEY, JSON.stringify(stored));
     return localStorage.getItem(KEY) !== null;
   } catch {
     return false;
@@ -69,8 +71,17 @@ export function rememberKeys(keys: ReaderKeyPair): boolean {
 
 export function rememberedKeys(): ReaderKeyPair | null {
   try {
-    const stored = JSON.parse(localStorage.getItem(KEY) ?? "null") as { publicKey: string; privateKey: string } | null;
-    return stored ? { publicKey: fromB64(stored.publicKey), privateKey: fromB64(stored.privateKey) } : null;
+    const stored = JSON.parse(localStorage.getItem(KEY) ?? "null") as { publicKey: string; privateKey: string; pin?: PinLock } | null;
+    return stored && !stored.pin ? { publicKey: fromB64(stored.publicKey), privateKey: fromB64(stored.privateKey) } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function pinLock(): PinLock | null {
+  try {
+    const stored = JSON.parse(localStorage.getItem(KEY) ?? "null") as { pin?: PinLock } | null;
+    return stored?.pin ?? null;
   } catch {
     return null;
   }

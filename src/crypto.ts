@@ -24,7 +24,23 @@ export interface ReaderKeyPair {
   privateKey: Uint8Array;
 }
 
-export interface KeyFile {
+// Version 2 files hold the key as is; version 1 files are locked with a passphrase.
+export interface PlainKeyFile {
+  version: 2;
+  publicKey: string;
+  privateKey: string;
+}
+
+export interface PinLock {
+  publicKey: string;
+  salt: string;
+  nonce: string;
+  wrapped: string;
+}
+
+export type KeyFile = PlainKeyFile | PassphraseKeyFile;
+
+export interface PassphraseKeyFile {
   version: 1;
   publicKey: string;
   salt: string;
@@ -73,7 +89,51 @@ function passphraseKey(passphrase: string, salt: Uint8Array, opsLimit: number, m
   );
 }
 
-export function createKeyFile(keys: ReaderKeyPair, passphrase: string): KeyFile {
+export function createPlainKeyFile(keys: ReaderKeyPair): PlainKeyFile {
+  return { version: 2, publicKey: sodium.to_base64(keys.publicKey), privateKey: sodium.to_base64(keys.privateKey) };
+}
+
+export function keyFileNeedsPassphrase(file: KeyFile): boolean {
+  return file.version === 1;
+}
+
+function pinKey(pin: string, salt: Uint8Array): Uint8Array {
+  return sodium.crypto_pwhash(
+    sodium.crypto_secretbox_KEYBYTES,
+    pin,
+    salt,
+    sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
+    sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE,
+    sodium.crypto_pwhash_ALG_ARGON2ID13,
+  );
+}
+
+export function isValidPin(pin: string): boolean {
+  return /^\d{4}$/.test(pin);
+}
+
+export function lockWithPin(keys: ReaderKeyPair, pin: string): PinLock {
+  if (!isValidPin(pin)) throw new CryptoError("PIN must be 4 digits");
+  const salt = sodium.randombytes_buf(sodium.crypto_pwhash_SALTBYTES);
+  const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
+  return {
+    publicKey: sodium.to_base64(keys.publicKey),
+    salt: sodium.to_base64(salt),
+    nonce: sodium.to_base64(nonce),
+    wrapped: sodium.to_base64(sodium.crypto_secretbox_easy(keys.privateKey, nonce, pinKey(pin, salt))),
+  };
+}
+
+export function unlockWithPin(lock: PinLock, pin: string): ReaderKeyPair {
+  try {
+    const privateKey = sodium.crypto_secretbox_open_easy(sodium.from_base64(lock.wrapped), sodium.from_base64(lock.nonce), pinKey(pin, sodium.from_base64(lock.salt)));
+    return { publicKey: sodium.from_base64(lock.publicKey), privateKey };
+  } catch {
+    throw new CryptoError("Wrong PIN");
+  }
+}
+
+export function createKeyFile(keys: ReaderKeyPair, passphrase: string): PassphraseKeyFile {
   if (Array.from(passphrase).length < MIN_PASSPHRASE_CHARS) {
     throw new CryptoError(`Passphrase must be at least ${MIN_PASSPHRASE_CHARS} characters`);
   }
@@ -99,7 +159,18 @@ export function createKeyFile(keys: ReaderKeyPair, passphrase: string): KeyFile 
   };
 }
 
-export function openKeyFile(file: KeyFile, passphrase: string): ReaderKeyPair {
+export function openKeyFile(file: KeyFile, passphrase = ""): ReaderKeyPair {
+  if (file.version === 2) {
+    try {
+      const publicKey = sodium.from_base64(file.publicKey);
+      const privateKey = sodium.from_base64(file.privateKey);
+      if (publicKey.length !== sodium.crypto_box_PUBLICKEYBYTES || privateKey.length !== sodium.crypto_box_SECRETKEYBYTES) throw new Error();
+      if (sodium.to_base64(sodium.crypto_scalarmult_base(privateKey)) !== file.publicKey) throw new Error();
+      return { publicKey, privateKey };
+    } catch {
+      throw new CryptoError("Invalid key file");
+    }
+  }
   if (
     file.version !== 1 ||
     file.opsLimit < sodium.crypto_pwhash_OPSLIMIT_MODERATE ||

@@ -19,19 +19,39 @@
     <button class="btn" id="opening-retry" type="button" hidden>Try again</button>
   </main>
 
+  <main class="card" id="view-pin" hidden>
+    <h1>Enter your PIN</h1>
+    <p class="sub">The 4-digit PIN you set for this device.</p>
+    <form id="pin-form">
+      <div class="field">
+        <label for="pin">PIN</label>
+        <input type="password" id="pin" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required autocomplete="off">
+      </div>
+      <p class="error" id="pin-error" role="alert" hidden></p>
+      <button class="btn" id="pin-open" type="submit">Open</button>
+    </form>
+    <button class="link-button forget" id="forgot-pin" type="button">Forgot PIN? Use your key file</button>
+  </main>
+
   <main class="card" id="view-unlock">
     <h1>Your messages</h1>
-    <p class="sub">To see messages sent to you, unlock your inbox once on this device. You only need to do this once.</p>
+    <p class="sub">To see messages sent to you, open your key file. You only need to do this once on this device.</p>
     <form id="unlock-form">
       <div class="field">
-        <label for="key-file">1. Your key file</label>
+        <label for="key-file">Your key file</label>
         <input type="file" id="key-file" accept=".json" required>
       </div>
-      <div class="field">
-        <label for="passphrase">2. Your passphrase</label>
-        <input type="password" id="passphrase" required autocomplete="current-password">
+      <div class="field" id="passphrase-field" hidden>
+        <label for="passphrase">Your passphrase</label>
+        <input type="password" id="passphrase" autocomplete="current-password">
+        <p class="hint">This older key file is locked with a passphrase.</p>
       </div>
       <label class="check"><input type="checkbox" id="stay" checked><span>Keep me signed in on this device. Turn this off on a shared computer.</span></label>
+      <div class="field" id="pin-field">
+        <label for="new-pin">4-digit PIN (optional)</label>
+        <input type="password" id="new-pin" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" autocomplete="off">
+        <p class="hint">Asked each time you open Messages here.</p>
+      </div>
       <p class="error" id="unlock-error" role="alert" hidden></p>
       <button class="btn" id="unlock" type="submit" disabled>Unlock</button>
       <p class="hint">No inbox yet? <a href="/setup">Get one</a>. You don't need one to send a message.</p>
@@ -107,7 +127,7 @@
 
   <dialog id="signout-dialog">
     <h2>Sign out of this device?</h2>
-    <p>You'll need your key file and passphrase to get back in, so make sure you still have them.</p>
+    <p>You'll need your key file to get back in, so make sure you still have it.</p>
     <p id="signout-extra" hidden>Chats you sent without signing in stay in this browser. Remove them under Sent if others use this computer.</p>
     <div class="dialog-actions">
       <button class="btn quiet" id="signout-cancel" type="button" autofocus>Cancel</button>

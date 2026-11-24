@@ -76,11 +76,11 @@ form.addEventListener("submit", (event) => {
       message.value = "";
       resetCounter();
       const remembered = code !== null && saveCode(code);
-      el("sent-sub").textContent = remembered ? `Only ${person.name} can open it. Their replies will show in Messages.` : code ? `Only ${person.name} can open it. Paste your code in Messages to see replies.` : `Only ${person.name} can open it.`;
+      el("sent-sub").textContent = remembered ? `Only ${person.name} can read it. Replies will show in Messages.` : code ? `Only ${person.name} can open it. Paste your code in Messages to see replies.` : `Only ${person.name} can open it.`;
       el("see-replies").hidden = !code;
-      const browserOnly = remembered && rememberedKeys() === null;
-      el("sent-note").hidden = !browserOnly;
-      el("backup").hidden = !browserOnly;
+      // Kept simple: the backup code lives under "Open on another device" in Messages.
+      el("sent-note").hidden = true;
+      el("backup").hidden = true;
       el("backup-block").hidden = true;
       el("backup-code").textContent = code ?? "";
       if (code && !remembered) {

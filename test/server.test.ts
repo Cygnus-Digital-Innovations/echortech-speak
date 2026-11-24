@@ -442,6 +442,22 @@ describe("hardening", () => {
     expect((await registration({ inviteCode: "wrong" }, path)).status).toBe(403);
   });
 
+  it("lets anyone sign up when no company code is set", async () => {
+    const open = createApp({ db, publicDir, powBits: POW_BITS, secureCookies: false });
+    await new Promise<void>((resolve) => open.listen(0, "127.0.0.1", resolve));
+    const port = (open.address() as { port: number }).port;
+    const challenge = await (await fetch(`http://127.0.0.1:${port}/api/pow`)).json();
+    let counter = 0;
+    while (!hasLeadingZeroBits(createHash("sha256").update(`${challenge.payload}:${counter}`).digest(), challenge.bits)) counter++;
+    const response = await fetch(`http://127.0.0.1:${port}/api/register/check`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "No Code Person", pow: { payload: challenge.payload, signature: challenge.signature, counter } }),
+    });
+    open.close();
+    expect(response.status).toBe(200);
+  });
+
   it("accepts the company code in any case", async () => {
     expect((await registration({ inviteCode: ` ${INVITE.toUpperCase()} ` })).status).toBe(200);
   });

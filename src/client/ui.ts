@@ -82,18 +82,23 @@ export function copyText(text: string, button: HTMLElement, doneLabel: string, s
   }, failed);
 }
 
-export async function readKeyFile(file: File | undefined, passphrase: string): Promise<ReaderKeyPair> {
+export async function parseKeyFile(file: File | undefined): Promise<KeyFile> {
   if (!file) throw new Error("Choose your key file first");
-  let parsed: KeyFile;
   try {
-    parsed = JSON.parse(await file.text()) as KeyFile;
+    const parsed = JSON.parse(await file.text()) as KeyFile;
+    if (parsed.version !== 1 && parsed.version !== 2) throw new Error();
+    return parsed;
   } catch {
     throw new Error("That doesn't look like a key file");
   }
+}
+
+export async function readKeyFile(file: File | undefined, passphrase: string): Promise<ReaderKeyPair> {
+  const parsed = await parseKeyFile(file);
   try {
     return openKeyFile(parsed, passphrase);
   } catch {
-    throw new Error("Wrong passphrase, or that key file is damaged");
+    throw new Error(parsed.version === 1 ? "Wrong passphrase, or that key file is damaged" : "That key file is damaged");
   }
 }
 

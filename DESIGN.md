@@ -26,10 +26,10 @@ Single-purpose pages use one centred card, 460px wide. The inbox uses one wide f
 Every page shares one top menu: Send, Messages, Get an inbox. Messages holds Received and Sent together. The menu hides while something shown only once is on screen.
 
 ## Forms
-People are picked with a searchable list that works before the main script loads. Passphrases can be generated with one click.
+People are picked with a searchable list that works before the main script loads. Setup asks for a name only. The key file needs no passphrase, and an optional 4-digit PIN locks the saved key on that browser.
 
 ## Remembering people
-Don't ask for a code, key file or passphrase on every visit. This browser remembers chats and stays signed in. Codes only appear for moving to another device.
+Don't ask for a code or key file on every visit. This browser remembers chats and stays signed in. Codes only appear for moving to another device.
 
 ## States
 Errors appear in `.error` under the form, and typed text is kept. Long work changes the button label ("Locking it…"). Empty lists say what happens next.
